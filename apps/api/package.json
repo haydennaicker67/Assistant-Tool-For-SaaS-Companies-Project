@@ -1,0 +1,12 @@
+{
+  "name": "@vizzly-sa/api",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "build": "echo 'todo'",
+    "dev": "echo 'todo'",
+    "lint": "echo 'todo'",
+    "typecheck": "echo 'todo'",
+    "test": "echo 'todo'"
+  }
+}

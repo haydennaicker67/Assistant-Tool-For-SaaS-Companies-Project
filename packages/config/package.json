@@ -1,0 +1,10 @@
+{
+  "name": "@vizzly-sa/config",
+  "version": "0.0.0",
+  "private": true,
+  "exports": {
+    "./tsconfig.base.json": "./tsconfig.base.json",
+    "./eslint-preset.js": "./eslint-preset.js"
+  },
+  "files": ["tsconfig.base.json", "eslint-preset.js"]
+}

@@ -1,0 +1,11 @@
+{
+  "name": "@vizzly-sa/web",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "build": "echo 'todo'",
+    "dev": "echo 'todo'",
+    "lint": "echo 'todo'",
+    "typecheck": "echo 'todo'"
+  }
+}
