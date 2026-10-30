@@ -2,11 +2,31 @@
   "name": "@vizzly-sa/api",
   "version": "0.0.0",
   "private": true,
+  "type": "module",
+  "main": "dist/index.js",
   "scripts": {
-    "build": "echo 'todo'",
-    "dev": "echo 'todo'",
-    "lint": "echo 'todo'",
-    "typecheck": "echo 'todo'",
-    "test": "echo 'todo'"
+    "build": "tsup",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "lint": "eslint src --ext .ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.13.0",
+    "@vizzly-sa/shared": "workspace:*",
+    "hono": "^4.6.0",
+    "jose": "^5.9.0",
+    "pino": "^9.5.0",
+    "pino-pretty": "^11.3.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@vizzly-sa/config": "workspace:*",
+    "tsup": "^8.3.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.4",
+    "vitest": "^2.1.0"
   }
 }

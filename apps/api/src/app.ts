@@ -1,0 +1,43 @@
+import { Hono } from "hono";
+import { cors } from "hono/cors";
+import { errorHandler } from "./errors";
+import { contextMiddleware } from "./middleware/context";
+import { accessLogMiddleware } from "./middleware/logger";
+import { requestIdMiddleware } from "./middleware/request-id";
+import { healthRoutes } from "./routes/health";
+import type { Env } from "./env";
+import { createLogger } from "./logger";
+import type { AppEnv } from "./types";
+
+/**
+ * Builds the Hono app. Exported so tests can construct an app with a
+ * mock env. The AppType export in index.ts wraps this for end-to-end
+ * type safety on the SDK side.
+ */
+export function buildApp(env: Env) {
+  const logger = createLogger(env);
+  const app = new Hono<AppEnv>();
+
+  app.use("*", requestIdMiddleware);
+  app.use("*", contextMiddleware(logger));
+  app.use("*", accessLogMiddleware);
+   app.use(
+    "*",
+    cors({
+      origin: (origin) => {
+        if (env.NODE_ENV === "production") {
+          return process.env.WEB_BASE_URL ?? "*";
+        }
+        return origin;
+      },
+      allowHeaders: ["Content-Type", "Authorization"],
+      allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+      exposeHeaders: ["x-request-id"]
+    })
+  );
+  app.onError(errorHandler);
+
+  app.route("/", healthRoutes);
+
+  return app;
+}
