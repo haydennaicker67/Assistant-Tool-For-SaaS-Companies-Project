@@ -15,22 +15,25 @@ export const queryRoutes = new Hono<AuthEnv>();
 
 const nlRequestSchema = z.object({
   question: z.string().min(1),
+  projectId: z.string().uuid(),
 });
 
 queryRoutes.post("/nl", authMiddleware, async (c) => {
   const logger = c.get("logger");
-  const claims = c.get("embedClaims"); // From auth middleware
-  const projectId = c.req.header("x-project-id"); // We'll pass this from the SDK for now
+  const claims = c.get("embedClaims"); 
   
-  if (!projectId) {
-    throw new AppError("invalid_request", "Missing x-project-id header", 400);
-  }
+  // Get the projectId securely from the middleware, not the header
+  const projectId = c.get("projectId"); 
 
   const body = await c.req.json();
-  const parsed = nlRequestSchema.safeParse(body);
+  // Validate the body, but overwrite the projectId with the secure one from middleware
+  const parsed = nlRequestSchema.safeParse({ ...body, projectId });
+  
   if (!parsed.success) {
     throw new AppError("invalid_request", "Invalid payload", 400, parsed.error.message);
   }
+
+  const { question } = parsed.data;
 
   // 1. Fetch the project and its semantic layer
   const [project] = await db.select().from(projects).where(eq(projects.id, projectId));
@@ -40,8 +43,8 @@ queryRoutes.post("/nl", authMiddleware, async (c) => {
   if (!layerRecord) throw new AppError("invalid_request", "Semantic layer not found", 404);
 
   // 2. Generate SQL via LLM
-  logger.info({ question: parsed.data.question }, "Generating SQL");
-  const { sql, explanation } = await generateSQL(parsed.data.question, layerRecord.layer);
+  logger.info({ question }, "Generating SQL");
+  const { sql, explanation } = await generateSQL(question, layerRecord.layer);
 
   // 3. Validate SQL
   logger.info({ sql }, "Validating SQL");
@@ -57,13 +60,11 @@ queryRoutes.post("/nl", authMiddleware, async (c) => {
     });
   } catch (err: any) {
     logger.error({ err, sql }, "Query execution failed");
-    // Catch Postgres syntax errors from the LLM
     throw new AppError("invalid_sql", "I couldn't understand that question—try rephrasing.", 400, err.message);
   }
   const queryMs = Date.now() - start;
 
   // 5. Format ChartSpec
-  // (For now, we just infer columns based on the returned rows)
   const columns = rows.length > 0 
     ? Object.keys(rows[0]).map(key => ({
         name: key,
@@ -73,7 +74,7 @@ queryRoutes.post("/nl", authMiddleware, async (c) => {
     : [];
 
   const chartSpec: ChartSpec = {
-    chartType: "table", // Default to table for now, the SDK will let the user switch
+    chartType: "table",
     columns,
     rows,
     meta: {

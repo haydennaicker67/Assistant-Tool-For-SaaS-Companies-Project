@@ -34,7 +34,11 @@ export function validateSQL(sql: string, layer: SemanticLayer): void {
 
   // 4. Force a LIMIT if it's not an aggregate query (to prevent crashing the browser with 1M rows)
   // If the query has no GROUP BY, it must have a LIMIT.
-  if (!lowerSql.includes("group by") && !lowerSql.includes("limit")) {
+   // 4. Force a LIMIT if it's not an aggregate query
+  // We check for GROUP BY or common aggregate functions (COUNT, SUM, AVG, MAX, MIN)
+  const isAggregate = /group\s+by|count\(|sum\(|avg\(|max\(|min\(/i.test(lowerSql);
+  
+  if (!isAggregate && !lowerSql.includes("limit")) {
     throw new AppError("invalid_sql", "Security violation: Unaggregated queries must have a LIMIT.", 400);
   }
 }

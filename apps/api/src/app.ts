@@ -28,12 +28,13 @@ export function buildApp(env: Env) {
     "*",
     cors({
       origin: (origin) => {
-        if (env.NODE_ENV === "production") {
-          return process.env.WEB_BASE_URL ?? "*";
+        // Allow localhost for dev, and the production URL later
+        if (!origin || origin.includes("localhost") || origin.includes(process.env.WEB_BASE_URL ?? "vizzly")) {
+          return origin;
         }
-        return origin;
+        return "http://localhost:3000";
       },
-      allowHeaders: ["Content-Type", "Authorization"],
+      allowHeaders: ["Content-Type", "Authorization", "x-project-id"],
       allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
       exposeHeaders: ["x-request-id"]
     })

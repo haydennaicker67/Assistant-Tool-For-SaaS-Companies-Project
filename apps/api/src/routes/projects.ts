@@ -1,11 +1,13 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { db } from "../lib/db";
-import { projects, semanticLayers } from "../db/schema";
+import { embedSecrets, projects, semanticLayers } from "../db/schema";
 import { introspectSchema } from "../lib/schema-introspect";
 import { generateSemanticLayer } from "../lib/semantic-gen";
 import { AppError } from "../errors";
 import type { AppEnv } from "../types";
+import { eq } from "drizzle-orm";
+import { randomBytes } from "node:crypto";
 
 export const projectRoutes = new Hono<AppEnv>();
 
@@ -69,4 +71,48 @@ projectRoutes.post("/connect-db", async (c) => {
     }
     throw new AppError("internal_error", "An error occurred while generating the semantic layer.", 500);
   }
+});
+
+projectRoutes.get("/:id/semantic-layer", async (c) => {
+  const projectId = c.req.param("id");
+  
+  const [layerRecord] = await db.select().from(semanticLayers).where(eq(semanticLayers.projectId, projectId));
+  
+  if (!layerRecord) {
+    throw new AppError("invalid_request", "Semantic layer not found", 404);
+  }
+
+  // Check if a secret already exists for this project
+  const [secretRecord] = await db.select().from(embedSecrets).where(eq(embedSecrets.projectId, projectId));
+
+  return c.json({
+    layer: layerRecord.layer,
+    published: layerRecord.published,
+    secret: secretRecord?.secret || null // Return the secret if it exists
+  });
+});
+
+projectRoutes.post("/:id/semantic-layer/publish", async (c) => {
+  const projectId = c.req.param("id");
+
+  // 1. Update layer to published
+  await db.update(semanticLayers)
+    .set({ published: true, updatedAt: new Date() })
+    .where(eq(semanticLayers.projectId, projectId));
+
+  // 2. Check if secret already exists
+  const [existingSecret] = await db.select().from(embedSecrets).where(eq(embedSecrets.projectId, projectId));
+  
+  let secret = existingSecret?.secret;
+
+  // 3. If no secret exists, generate one and save it
+  if (!secret) {
+    secret = randomBytes(32).toString("hex");
+    await db.insert(embedSecrets).values({
+      projectId,
+      secret
+    });
+  }
+
+  return c.json({ ok: true, secret });
 });

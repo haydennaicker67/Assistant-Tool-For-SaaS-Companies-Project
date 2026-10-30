@@ -19,7 +19,7 @@ export async function generateSemanticLayer(rawSchema: RawSchema[]): Promise<Sem
   // We define the exact JSON schema Gemini must adhere to.
   // This replaces OpenAI's "Structured Outputs" feature.
   const response = await ai.models.generateContent({
-    model: "gemini-2.5-flash", 
+    model: "gemini-3.8-flash", 
     contents: `Here is the raw PostgreSQL schema:\n\n${schemaPrompt}`,
     config: {
       systemInstruction: `You are an expert data engineer building a semantic layer for a SaaS analytics tool in South Africa.

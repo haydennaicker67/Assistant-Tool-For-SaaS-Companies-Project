@@ -1,5 +1,8 @@
 import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
+import Link from 'next/link'
+
+
 
 export default async function Home() {
   const supabase = await createClient()
@@ -21,9 +24,12 @@ export default async function Home() {
       
       <div className="text-center p-12 border-2 border-dashed rounded-lg border-gray-300">
         <p className="text-gray-500 mb-4">You don't have any projects yet.</p>
-        <button disabled className="px-4 py-2 bg-blue-600 text-white rounded opacity-50 cursor-not-allowed">
-          Create Project (Coming in next step)
-        </button>
+        <Link 
+          href="/projects/new"
+          className="inline-block px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+       >
+          Create Project
+        </Link>
       </div>
     </div>
   )
