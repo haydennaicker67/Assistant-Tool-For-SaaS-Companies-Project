@@ -14,8 +14,8 @@ const EnvSchema = z.object({
     .default("info"),
   /** Populated in Step 4. Optional here so Step 3 boots standalone. */
   DATABASE_URL: z.string().optional(),
-  /** Populated in Step 5. Optional here so Step 3 boots standalone. */
-  EMBED_JWT_SECRET: z.string().optional(),
+   /** Populated in Step 5. Optional here so Step 3 boots standalone. */
+  EMBED_JWT_SECRET: z.string().min(32).optional(),
   OPENAI_API_KEY: z.string().optional()
 });
 
