@@ -62,3 +62,13 @@ export const queryCache = pgTable("query_cache", {
   payload: jsonb("payload").notNull(),
   expiresAt: timestamp("expires_at").notNull(),
 });
+
+// 7. Audit Logs (Enterprise)
+export const auditLogs = pgTable("audit_logs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  projectId: uuid("project_id").references(() => projects.id).notNull(),
+  actorId: text("actor_id").notNull(), // e.g., the user_id from the JWT or developer email
+  action: text("action").notNull(), // 'query', 'export', 'semantic_update', 'login'
+  details: jsonb("details").notNull(), // e.g., { sql: "...", question: "..." }
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});

@@ -84,6 +84,12 @@ export async function ProjectsList() {
                   >
                     Edit Layer
                   </Link>
+                    <Link 
+                    href={`/projects/${project.id}/audit`}
+                    className="text-sm font-medium text-gray-600 hover:text-gray-800"
+                  >
+                    Audit Log
+                  </Link>
                   <Link 
                     href={`/projects/${project.id}/dashboard`}
                     className="text-sm font-medium text-green-600 hover:text-green-800"

@@ -13,6 +13,7 @@ import { authMiddleware } from "../middleware/auth";
 import { trackUsage } from "../lib/usage";
 import { checkUsageLimit } from "../lib/limits";
 import { generateCacheKey, getCachedQuery, setCachedQuery } from "../lib/cache";
+import { logAudit } from "../lib/audit"; // NEW IMPORT
 
 export const queryRoutes = new Hono<AuthEnv>();
 
@@ -26,10 +27,7 @@ queryRoutes.post("/nl", authMiddleware, async (c) => {
   const claims = c.get("embedClaims"); 
   const projectId = c.get("projectId"); 
 
-  // 1. Check Usage Limits
   await checkUsageLimit(projectId);
-
-  // 2. Track Usage
   trackUsage(projectId, claims.tenant_id).catch(console.error);
 
   const body = await c.req.json();
@@ -41,7 +39,6 @@ queryRoutes.post("/nl", authMiddleware, async (c) => {
 
   const { question } = parsed.data;
 
-  // 3. Check Edge Cache
   const cacheKey = generateCacheKey(claims.tenant_id, question);
   const cachedResult = await getCachedQuery(cacheKey);
   
@@ -53,22 +50,18 @@ queryRoutes.post("/nl", authMiddleware, async (c) => {
     });
   }
 
-  // 4. Fetch Project & Semantic Layer
   const [project] = await db.select().from(projects).where(eq(projects.id, projectId));
   if (!project) throw new AppError("invalid_request", "Project not found", 404);
 
   const [layerRecord] = await db.select().from(semanticLayers).where(eq(semanticLayers.projectId, projectId));
   if (!layerRecord) throw new AppError("invalid_request", "Semantic layer not found", 404);
 
-  // 5. Generate SQL
   logger.info({ question }, "Generating SQL");
   const { sql, explanation } = await generateSQL(question, layerRecord.layer);
 
-  // 6. Validate SQL
   logger.info({ sql }, "Validating SQL");
   const validatedSql = validateSQL(sql, layerRecord.layer);
 
-  // 7. Execute Query
   logger.info("Executing query");
   const start = Date.now();
   let rows: any[];
@@ -84,7 +77,6 @@ queryRoutes.post("/nl", authMiddleware, async (c) => {
   
   const queryMs = Date.now() - start;
 
-  // 8. Format ChartSpec
   const columns = rows.length > 0 
     ? Object.keys(rows[0]).map(key => ({
         name: key,
@@ -113,7 +105,9 @@ queryRoutes.post("/nl", authMiddleware, async (c) => {
     }
   };
 
-  // 9. Save to Edge Cache (60 seconds)
+  // NEW: Log the audit event
+  logAudit(projectId, claims.user_id, "query", { question, sql: validatedSql }).catch(console.error);
+
   await setCachedQuery(cacheKey, chartSpec, 60);
 
   return c.json(chartSpec);
