@@ -46,22 +46,24 @@ queryRoutes.post("/nl", authMiddleware, async (c) => {
   logger.info({ question }, "Generating SQL");
   const { sql, explanation } = await generateSQL(question, layerRecord.layer);
 
-    // 3. Validate and sanitize SQL
+  // 3. Validate and sanitize SQL
   logger.info({ sql }, "Validating SQL");
   const validatedSql = validateSQL(sql, layerRecord.layer);
 
-  // 4. Execute query with RLS
+    // 4. Execute query with RLS
   logger.info("Executing query");
   const start = Date.now();
   let rows: any[];
+  
   try {
-        rows = await queryWithRLS(project.dbConnectionString, claims.tenant_id, async (tx) => {
-      return await tx.unsafe(validatedSql); // Use the validated SQL here
+    rows = await queryWithRLS(project.dbConnectionString, claims.tenant_id, async (tx) => {
+      return await tx.unsafe(validatedSql); 
     });
   } catch (err: any) {
     logger.error({ err, sql }, "Query execution failed");
     throw new AppError("invalid_sql", "I couldn't understand that question—try rephrasing.", 400, err.message);
   }
+  
   const queryMs = Date.now() - start;
 
   // 5. Format ChartSpec
@@ -73,8 +75,14 @@ queryRoutes.post("/nl", authMiddleware, async (c) => {
       }))
     : [];
 
+  // Auto-detect chart type based on the query
+  let chartType: "table" | "bar" = "table";
+  if (sql.toLowerCase().includes("group by") && columns.length >= 2) {
+    chartType = "bar";
+  }
+
   const chartSpec: ChartSpec = {
-    chartType: "table",
+    chartType: chartType, // Fixed: using the variable instead of hardcoded "table"
     columns,
     rows,
     meta: {
