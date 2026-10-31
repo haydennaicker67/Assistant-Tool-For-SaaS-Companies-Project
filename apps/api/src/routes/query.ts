@@ -12,6 +12,7 @@ import type { ChartSpec } from "@vizzly-sa/shared";
 import { authMiddleware } from "../middleware/auth";
 import { trackUsage } from "../lib/usage";
 import { checkUsageLimit } from "../lib/limits";
+import { generateCacheKey, getCachedQuery, setCachedQuery } from "../lib/cache";
 
 export const queryRoutes = new Hono<AuthEnv>();
 
@@ -23,16 +24,15 @@ const nlRequestSchema = z.object({
 queryRoutes.post("/nl", authMiddleware, async (c) => {
   const logger = c.get("logger");
   const claims = c.get("embedClaims"); 
-  
-  // Get the projectId securely from the middleware, not the header
   const projectId = c.get("projectId"); 
 
+  // 1. Check Usage Limits
   await checkUsageLimit(projectId);
 
+  // 2. Track Usage
   trackUsage(projectId, claims.tenant_id).catch(console.error);
 
   const body = await c.req.json();
-  // Validate the body, but overwrite the projectId with the secure one from middleware
   const parsed = nlRequestSchema.safeParse({ ...body, projectId });
   
   if (!parsed.success) {
@@ -41,22 +41,34 @@ queryRoutes.post("/nl", authMiddleware, async (c) => {
 
   const { question } = parsed.data;
 
-  // 1. Fetch the project and its semantic layer
+  // 3. Check Edge Cache
+  const cacheKey = generateCacheKey(claims.tenant_id, question);
+  const cachedResult = await getCachedQuery(cacheKey);
+  
+  if (cachedResult) {
+    logger.info("Returning cached NL query result");
+    return c.json({ 
+      ...(cachedResult as any), 
+      meta: { ...(cachedResult as any).meta, cached: true } 
+    });
+  }
+
+  // 4. Fetch Project & Semantic Layer
   const [project] = await db.select().from(projects).where(eq(projects.id, projectId));
   if (!project) throw new AppError("invalid_request", "Project not found", 404);
 
   const [layerRecord] = await db.select().from(semanticLayers).where(eq(semanticLayers.projectId, projectId));
   if (!layerRecord) throw new AppError("invalid_request", "Semantic layer not found", 404);
 
-  // 2. Generate SQL via LLM
+  // 5. Generate SQL
   logger.info({ question }, "Generating SQL");
   const { sql, explanation } = await generateSQL(question, layerRecord.layer);
 
-  // 3. Validate and sanitize SQL
+  // 6. Validate SQL
   logger.info({ sql }, "Validating SQL");
   const validatedSql = validateSQL(sql, layerRecord.layer);
 
-    // 4. Execute query with RLS
+  // 7. Execute Query
   logger.info("Executing query");
   const start = Date.now();
   let rows: any[];
@@ -72,9 +84,7 @@ queryRoutes.post("/nl", authMiddleware, async (c) => {
   
   const queryMs = Date.now() - start;
 
-  //trackUsage(projectId, claims.tenant_id).catch(console.error);
-
-  // 5. Format ChartSpec
+  // 8. Format ChartSpec
   const columns = rows.length > 0 
     ? Object.keys(rows[0]).map(key => ({
         name: key,
@@ -83,14 +93,13 @@ queryRoutes.post("/nl", authMiddleware, async (c) => {
       }))
     : [];
 
-  // Auto-detect chart type based on the query
   let chartType: "table" | "bar" = "table";
   if (sql.toLowerCase().includes("group by") && columns.length >= 2) {
     chartType = "bar";
   }
 
   const chartSpec: ChartSpec = {
-    chartType: chartType, // Fixed: using the variable instead of hardcoded "table"
+    chartType: chartType,
     columns,
     rows,
     meta: {
@@ -103,6 +112,9 @@ queryRoutes.post("/nl", authMiddleware, async (c) => {
       truncated: false,
     }
   };
+
+  // 9. Save to Edge Cache (60 seconds)
+  await setCachedQuery(cacheKey, chartSpec, 60);
 
   return c.json(chartSpec);
 });

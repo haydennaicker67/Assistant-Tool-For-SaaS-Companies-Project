@@ -41,7 +41,6 @@ function TableView({ data }: { data: ChartSpec }) {
 function BarChartView({ data }: { data: ChartSpec }) {
   if (data.rows.length === 0) return <div style={{ textAlign: 'center', color: '#6b7280' }}>No data found</div>;
 
-  // Assume the first column is the label (X-axis) and the second is the value (Y-axis)
   const labelKey = data.columns[0]?.name;
   const valueKey = data.columns[1]?.name;
 
@@ -74,14 +73,11 @@ export function Chart({ data }: { data: ChartSpec }) {
   const downloadCSV = () => {
     if (!data || data.rows.length === 0) return;
 
-    // 1. Get headers
     const headers = data.columns.map(c => c.label).join(",");
 
-    // 2. Get rows
     const csvRows = data.rows.map(row => {
       return data.columns.map(col => {
-                let val = row[col.name];
-        // Escape quotes and wrap in quotes if it contains a comma
+        let val = row[col.name];
         if (typeof val === "string") {
           const strVal = val.replace(/"/g, '""');
           return strVal.includes(",") ? `"${strVal}"` : strVal;
@@ -90,7 +86,6 @@ export function Chart({ data }: { data: ChartSpec }) {
       }).join(",");
     });
 
-    // 3. Combine and download
     const csvContent = [headers, ...csvRows].join("\n");
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
@@ -137,7 +132,10 @@ export function Chart({ data }: { data: ChartSpec }) {
       {data.chartType === "bar" ? <BarChartView data={data} /> : <TableView data={data} />}
       
       <div style={{ marginTop: '0.75rem', fontSize: '0.75rem', color: '#6b7280', display: 'flex', justifyContent: 'space-between' }}>
-        <span>{data.meta.rowCount} rows · {data.meta.queryMs}ms</span>
+        <span>
+          {data.meta.rowCount} rows · {data.meta.queryMs}ms 
+          {data.meta.cached && <span style={{ color: '#10b981', marginLeft: '0.5rem', fontWeight: 'bold' }}>(Cached)</span>}
+        </span>
         <span>Type: {data.chartType}</span>
       </div>
     </div>

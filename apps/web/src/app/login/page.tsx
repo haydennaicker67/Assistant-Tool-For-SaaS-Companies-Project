@@ -27,7 +27,8 @@ export default function LoginPage() {
       setError(error.message)
       setLoading(false)
     } else {
-      router.push('/')
+      // CHANGED: Redirect to the dashboard instead of root
+      router.push('/dashboard') 
       router.refresh()
     }
   }

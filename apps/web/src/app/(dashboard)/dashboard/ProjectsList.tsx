@@ -4,19 +4,18 @@ import Link from 'next/link'
 import { db } from '@vizzly-sa/api/src/lib/db'
 import { projects } from '@vizzly-sa/api/src/db/schema'
 import { desc } from 'drizzle-orm'
-import { UpgradeButton } from './components/UpgradeButton'
+import { UpgradeButton } from '@/app/components/UpgradeButton'
 
-export default async function Home() {
+export async function ProjectsList() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) redirect('/login')
 
-  // Fetch all projects (in a real app, we'd filter by user_id)
   const allProjects = await db.select().from(projects).orderBy(desc(projects.createdAt))
 
   return (
-    <div className="p-8 max-w-5xl mx-auto">
+    <div>
       <div className="flex justify-between items-center mb-8 border-b pb-4">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Your Projects</h1>
@@ -60,7 +59,6 @@ export default async function Home() {
                 <div className="flex justify-between items-start mb-4">
                   <h2 className="text-xl font-bold text-gray-900 truncate">{project.name}</h2>
                   
-                  {/* Plan Badge */}
                   <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                     project.planTier === 'free' ? 'bg-gray-100 text-gray-800' : 
                     project.planTier === 'growth' ? 'bg-blue-100 text-blue-800' : 
@@ -78,7 +76,6 @@ export default async function Home() {
                 </p>
               </div>
 
-              {/* Card Footer Actions */}
               <div className="bg-gray-50 px-6 py-3 border-t rounded-b-lg flex justify-between items-center">
                 <div className="flex gap-4">
                   <Link 
@@ -95,7 +92,6 @@ export default async function Home() {
                   </Link>
                 </div>
                 
-                {/* Paystack Upgrade Button - Using Client Component */}
                 {project.planTier === "free" && (
                   <UpgradeButton projectId={project.id} />
                 )}
