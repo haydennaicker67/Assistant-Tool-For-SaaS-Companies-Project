@@ -13,6 +13,7 @@ import { queryRoutes } from "./routes/query";
 import { authMiddleware } from "./middleware/auth";
 import { billingRoutes } from "./routes/billing";
 import { auditRoutes } from "./routes/audit";
+import { versionRoutes } from "./routes/versions";
 
 /**
  * Builds the Hono app. Exported so tests can construct an app with a
@@ -48,6 +49,7 @@ export function buildApp(env: Env) {
   app.route("/v1/query", queryRoutes);
   app.route("/v1/billing", billingRoutes);
   app.route("/v1/audit", auditRoutes);
+  app.route("/v1/versions", versionRoutes);
 
   return app;
 }

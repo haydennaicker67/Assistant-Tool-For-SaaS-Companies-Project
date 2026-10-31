@@ -1,14 +1,14 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { db } from "../lib/db";
-import { embedSecrets, projects, semanticLayers } from "../db/schema";
+import { embedSecrets, projects, semanticLayers, semanticLayerVersions } from "../db/schema";
 import { introspectSchema } from "../lib/schema-introspect";
 import { generateSemanticLayer } from "../lib/semantic-gen";
 import { AppError } from "../errors";
 import type { AppEnv } from "../types";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm"; 
 import { randomBytes } from "node:crypto";
-import { logAudit } from "../lib/audit"; // NEW IMPORT
+import { logAudit } from "../lib/audit"; 
 
 export const projectRoutes = new Hono<AppEnv>();
 
@@ -87,32 +87,49 @@ projectRoutes.post("/:id/semantic-layer/publish", async (c) => {
   const projectId = c.req.param("id");
   const body = await c.req.json().catch(() => ({})); 
 
+  // 1. Update the main layer
+  let updatedLayer;
   if (body.layer) {
-    await db.update(semanticLayers)
+    const [result] = await db.update(semanticLayers)
       .set({ layer: body.layer, published: true, updatedAt: new Date() })
-      .where(eq(semanticLayers.projectId, projectId));
+      .where(eq(semanticLayers.projectId, projectId))
+      .returning();
+    if (!result) throw new AppError("internal_error", "Failed to update semantic layer", 500);
+    updatedLayer = result.layer;
   } else {
-    await db.update(semanticLayers)
+    const [result] = await db.update(semanticLayers)
       .set({ published: true, updatedAt: new Date() })
-      .where(eq(semanticLayers.projectId, projectId));
+      .where(eq(semanticLayers.projectId, projectId))
+      .returning();
+    if (!result) throw new AppError("internal_error", "Failed to update semantic layer", 500);
+    updatedLayer = result.layer;
   }
 
-  const [existingSecret] = await db.select().from(embedSecrets).where(eq(embedSecrets.projectId, projectId));
+  // 2. Save a version snapshot
+  const [versionResult] = await db.select({ count: sql<number>`count(*)` })
+    .from(semanticLayerVersions)
+    .where(eq(semanticLayerVersions.projectId, projectId));
   
-  let secret = existingSecret?.secret;
+  const nextVersionNumber = Number(versionResult?.count || 0) + 1;
 
+  await db.insert(semanticLayerVersions).values({
+    projectId,
+    layer: updatedLayer,
+    versionNumber: nextVersionNumber
+  });
+
+  // 3. Generate/Get Secret (existing code)
+  const [existingSecret] = await db.select().from(embedSecrets).where(eq(embedSecrets.projectId, projectId));
+  let secret = existingSecret?.secret;
   if (!secret) {
     secret = randomBytes(32).toString("hex");
-    await db.insert(embedSecrets).values({
-      projectId,
-      secret
-    });
+    await db.insert(embedSecrets).values({ projectId, secret });
   }
 
-  // NEW: Log the audit event
+  // 4. Audit Log (existing code)
   logAudit(projectId, "developer", "semantic_update", { 
-    message: "Published new semantic layer version" 
+    message: `Published semantic layer version ${nextVersionNumber}` 
   }).catch(console.error);
 
-  return c.json({ ok: true, secret });
+  return c.json({ ok: true, secret, version: nextVersionNumber });
 });

@@ -72,3 +72,12 @@ export const auditLogs = pgTable("audit_logs", {
   details: jsonb("details").notNull(), // e.g., { sql: "...", question: "..." }
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+// 8. Semantic Layer Versions (Enterprise)
+export const semanticLayerVersions = pgTable("semantic_layer_versions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  projectId: uuid("project_id").references(() => projects.id).notNull(),
+  layer: jsonb("layer").$type<SemanticLayer>().notNull(),
+  versionNumber: integer("version_number").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});

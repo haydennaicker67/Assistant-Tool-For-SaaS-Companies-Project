@@ -39,11 +39,12 @@ function SemanticLayerContent() {
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/v1/projects/${projectId}/semantic-layer/publish`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ layer }), // Send the updated layer back!
+        body: JSON.stringify({ layer }), 
       })
       if (!res.ok) throw new Error('Failed to publish')
       const data = await res.json()
       setEmbedSecret(data.secret)
+      alert(`Successfully published version ${data.version || ''}!`)
     } catch (err: any) {
       alert(err.message)
     } finally {
@@ -76,13 +77,23 @@ function SemanticLayerContent() {
           <h1 className="text-3xl font-bold text-gray-900">Review Semantic Layer</h1>
           <p className="text-gray-500 mt-1">Review the AI-generated descriptions and define custom metrics.</p>
         </div>
-        <button 
-          onClick={handlePublish}
-          disabled={publishing}
-          className="px-4 py-2 bg-blue-600 text-white rounded-md font-medium hover:bg-blue-700 disabled:opacity-50"
-        >
-          {publishing ? 'Publishing...' : 'Save & Publish Layer'}
-        </button>
+        
+        {/* NEW: Version History Button + Publish Button */}
+        <div className="flex gap-4">
+          <Link 
+            href={`/projects/${projectId}/versions`}
+            className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md font-medium hover:bg-gray-200"
+          >
+            Version History
+          </Link>
+          <button 
+            onClick={handlePublish}
+            disabled={publishing}
+            className="px-4 py-2 bg-blue-600 text-white rounded-md font-medium hover:bg-blue-700 disabled:opacity-50"
+          >
+            {publishing ? 'Publishing...' : 'Save & Publish Layer'}
+          </button>
+        </div>
       </div>
 
       {/* TABLES SECTION */}
@@ -232,7 +243,6 @@ function SemanticLayerContent() {
   )
 }
 
-// 2. The Suspense wrapper (fixes the Next.js 16 error)
 export default function SemanticLayerPage() {
   return (
     <Suspense fallback={<div className="p-8 text-center">Loading dashboard...</div>}>
