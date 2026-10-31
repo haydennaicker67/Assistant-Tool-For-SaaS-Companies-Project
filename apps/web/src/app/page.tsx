@@ -1,8 +1,9 @@
 import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-
-
+import { db } from '@vizzly-sa/api/src/lib/db'
+import { projects } from '@vizzly-sa/api/src/db/schema'
+import { desc } from 'drizzle-orm'
 
 export default async function Home() {
   const supabase = await createClient()
@@ -10,10 +11,16 @@ export default async function Home() {
 
   if (!user) redirect('/login')
 
+  // Fetch all projects (in a real app, we'd filter by user_id)
+  const allProjects = await db.select().from(projects).orderBy(desc(projects.createdAt))
+
   return (
-    <div className="p-8 max-w-4xl mx-auto">
+    <div className="p-8 max-w-5xl mx-auto">
       <div className="flex justify-between items-center mb-8 border-b pb-4">
-        <h1 className="text-3xl font-bold text-gray-900">Your Projects</h1>
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Your Projects</h1>
+          <p className="text-gray-500 mt-1">Manage your embedded analytics environments.</p>
+        </div>
         <div className="flex items-center gap-4">
           <span className="text-sm text-gray-500">{user.email}</span>
           <form action="/auth/signout" method="post">
@@ -21,16 +28,65 @@ export default async function Home() {
           </form>
         </div>
       </div>
+
+         {allProjects.length > 0 && (
+        <div className="mb-6 flex justify-end">
+          <Link 
+            href="/projects/new"
+            className="px-4 py-2 bg-gray-900 text-white rounded-md text-sm font-medium hover:bg-gray-800"
+          >
+            + New Project
+          </Link>
+        </div>
+      )}
       
-      <div className="text-center p-12 border-2 border-dashed rounded-lg border-gray-300">
-        <p className="text-gray-500 mb-4">You don't have any projects yet.</p>
-        <Link 
-          href="/projects/new"
-          className="inline-block px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-       >
-          Create Project
-        </Link>
-      </div>
+      {allProjects.length === 0 ? (
+        <div className="text-center p-12 border-2 border-dashed rounded-lg border-gray-300 bg-gray-50">
+          <h3 className="text-lg font-medium text-gray-900 mb-2">No projects yet</h3>
+          <p className="text-gray-500 mb-6">Get started by connecting your first database.</p>
+          <Link 
+            href="/projects/new"
+            className="inline-block px-6 py-3 bg-blue-600 text-white rounded-md font-medium hover:bg-blue-700 transition-colors"
+          >
+            Create Project
+          </Link>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {allProjects.map((project) => (
+            <div key={project.id} className="bg-white border rounded-lg shadow-sm hover:shadow-md transition-shadow flex flex-col">
+              <div className="p-6 flex-1">
+                <div className="flex justify-between items-start mb-4">
+                  <h2 className="text-xl font-bold text-gray-900 truncate">{project.name}</h2>
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                    Active
+                  </span>
+                </div>
+                <p className="text-sm text-gray-500 mb-2 font-mono truncate">
+                  ID: {project.id}
+                </p>
+                <p className="text-sm text-gray-500">
+                  Created: {new Date(project.createdAt).toLocaleDateString()}
+                </p>
+              </div>
+              <div className="bg-gray-50 px-6 py-3 border-t rounded-b-lg flex justify-end gap-4">
+                <Link 
+                  href={`/projects/${project.id}/semantic-layer`}
+                  className="text-sm font-medium text-blue-600 hover:text-blue-800"
+                >
+                  Edit Layer
+                </Link>
+                <Link 
+                  href={`/projects/${project.id}/dashboard`}
+                  className="text-sm font-medium text-green-600 hover:text-green-800"
+                >
+                  View Dashboard →
+                </Link>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
