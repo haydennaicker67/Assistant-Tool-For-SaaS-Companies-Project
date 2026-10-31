@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
+import { fetchApi } from '@/utils/api'
 
 export default function VersionHistoryPage() {
   const params = useParams()
@@ -13,7 +14,7 @@ export default function VersionHistoryPage() {
   useEffect(() => {
     async function fetchVersions() {
       try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/v1/versions/${projectId}`)
+        const res = await fetchApi(`/v1/versions/${projectId}`)
         if (!res.ok) throw new Error('Failed to fetch versions')
         const data = await res.json()
         setVersions(data.versions)

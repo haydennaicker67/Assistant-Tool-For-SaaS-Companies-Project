@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
+import { fetchApi } from '@/utils/api'
 
 export default function AuditLogPage() {
   const params = useParams()
@@ -13,7 +14,7 @@ export default function AuditLogPage() {
   useEffect(() => {
     async function fetchLogs() {
       try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/v1/audit/${projectId}`)
+        const res = await fetchApi(`/v1/audit/${projectId}`)
         if (!res.ok) throw new Error('Failed to fetch logs')
         const data = await res.json()
         setLogs(data.logs)

@@ -13,7 +13,8 @@ import { authMiddleware } from "../middleware/auth";
 import { trackUsage } from "../lib/usage";
 import { checkUsageLimit } from "../lib/limits";
 import { generateCacheKey, getCachedQuery, setCachedQuery } from "../lib/cache";
-import { logAudit } from "../lib/audit"; // NEW IMPORT
+import { logAudit } from "../lib/audit";
+import { decrypt } from "../lib/crypto"; // NEW IMPORT
 
 export const queryRoutes = new Hono<AuthEnv>();
 
@@ -53,6 +54,9 @@ queryRoutes.post("/nl", authMiddleware, async (c) => {
   const [project] = await db.select().from(projects).where(eq(projects.id, projectId));
   if (!project) throw new AppError("invalid_request", "Project not found", 404);
 
+  // DECRYPT HERE
+  const connectionString = decrypt(project.dbConnectionStringEncrypted);
+
   const [layerRecord] = await db.select().from(semanticLayers).where(eq(semanticLayers.projectId, projectId));
   if (!layerRecord) throw new AppError("invalid_request", "Semantic layer not found", 404);
 
@@ -67,7 +71,7 @@ queryRoutes.post("/nl", authMiddleware, async (c) => {
   let rows: any[];
   
   try {
-    rows = await queryWithRLS(project.dbConnectionString, claims.tenant_id, async (tx) => {
+    rows = await queryWithRLS(connectionString, claims.tenant_id, async (tx) => {
       return await tx.unsafe(validatedSql); 
     });
   } catch (err: any) {
@@ -105,9 +109,7 @@ queryRoutes.post("/nl", authMiddleware, async (c) => {
     }
   };
 
-  // NEW: Log the audit event
   logAudit(projectId, claims.user_id, "query", { question, sql: validatedSql }).catch(console.error);
-
   await setCachedQuery(cacheKey, chartSpec, 60);
 
   return c.json(chartSpec);

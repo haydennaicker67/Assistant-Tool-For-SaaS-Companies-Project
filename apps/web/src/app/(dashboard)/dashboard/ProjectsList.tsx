@@ -57,7 +57,11 @@ export async function ProjectsList() {
             <div key={project.id} className="bg-white border rounded-lg shadow-sm hover:shadow-md transition-shadow flex flex-col">
               <div className="p-6 flex-1">
                 <div className="flex justify-between items-start mb-4">
-                  <h2 className="text-xl font-bold text-gray-900 truncate">{project.name}</h2>
+                  
+                  {/* ADDED LINK TO OVERVIEW */}
+                  <Link href={`/projects/${project.id}/overview`}>
+                    <h2 className="text-xl font-bold text-gray-900 truncate hover:text-blue-600 transition-colors">{project.name}</h2>
+                  </Link>
                   
                   <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                     project.planTier === 'free' ? 'bg-gray-100 text-gray-800' : 
@@ -76,15 +80,21 @@ export async function ProjectsList() {
                 </p>
               </div>
 
-              <div className="bg-gray-50 px-6 py-3 border-t rounded-b-lg flex justify-between items-center">
-                <div className="flex gap-4">
+              <div className="bg-gray-50 px-6 py-3 border-t rounded-b-lg flex flex-wrap gap-3 justify-between items-center">
+                <div className="flex flex-wrap gap-3">
+                  <Link 
+                    href={`/projects/${project.id}/overview`}
+                    className="text-sm font-medium text-gray-800 hover:text-gray-900"
+                  >
+                    Overview
+                  </Link>
                   <Link 
                     href={`/projects/${project.id}/semantic-layer`}
                     className="text-sm font-medium text-blue-600 hover:text-blue-800"
                   >
                     Edit Layer
                   </Link>
-                    <Link 
+                  <Link 
                     href={`/projects/${project.id}/audit`}
                     className="text-sm font-medium text-gray-600 hover:text-gray-800"
                   >

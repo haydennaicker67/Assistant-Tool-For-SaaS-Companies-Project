@@ -13,10 +13,11 @@ import type { SemanticLayer } from "@vizzly-sa/shared";
 export const projects = pgTable("projects", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
-  dbConnectionString: text("db_connection_string").notNull(),
+  // UPDATED: Renamed to reflect encryption at rest
+  dbConnectionStringEncrypted: text("db_connection_string_encrypted").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   
-  // NEW: Billing columns for Paystack
+  // Billing columns for Paystack
   billingCustomerId: text("billing_customer_id"),
   planTier: text("plan_tier").default("free").notNull(), // 'free' | 'growth' | 'scale'
 });
@@ -25,7 +26,7 @@ export const projects = pgTable("projects", {
 export const tenants = pgTable("tenants", {
   id: uuid("id").primaryKey().defaultRandom(),
   projectId: uuid("project_id").references(() => projects.id).notNull(),
-  externalId: text("external_id").notNull(), // The ID used by the SaaS app
+  externalId: text("external_id").notNull(), 
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -50,7 +51,6 @@ export const embedSecrets = pgTable("embed_secrets", {
 export const usageEvents = pgTable("usage_events", {
   id: uuid("id").primaryKey().defaultRandom(),
   projectId: uuid("project_id").references(() => projects.id).notNull(),
-  // Removed the reference to tenants. Tenant IDs live in the customer's DB, not ours.
   tenantId: text("tenant_id").notNull(), 
   eventType: text("event_type").notNull(), 
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -58,7 +58,7 @@ export const usageEvents = pgTable("usage_events", {
 
 // 6. Query Cache
 export const queryCache = pgTable("query_cache", {
-  hash: text("hash").primaryKey(), // tenant_id:user_id:query_hash
+  hash: text("hash").primaryKey(), 
   payload: jsonb("payload").notNull(),
   expiresAt: timestamp("expires_at").notNull(),
 });
@@ -67,9 +67,9 @@ export const queryCache = pgTable("query_cache", {
 export const auditLogs = pgTable("audit_logs", {
   id: uuid("id").primaryKey().defaultRandom(),
   projectId: uuid("project_id").references(() => projects.id).notNull(),
-  actorId: text("actor_id").notNull(), // e.g., the user_id from the JWT or developer email
-  action: text("action").notNull(), // 'query', 'export', 'semantic_update', 'login'
-  details: jsonb("details").notNull(), // e.g., { sql: "...", question: "..." }
+  actorId: text("actor_id").notNull(), 
+  action: text("action").notNull(), 
+  details: jsonb("details").notNull(), 
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

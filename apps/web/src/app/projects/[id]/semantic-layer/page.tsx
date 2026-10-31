@@ -3,6 +3,7 @@
 import { useEffect, useState, Suspense } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
+import { fetchApi } from '@/utils/api'
 
 function SemanticLayerContent() {
   const params = useParams()
@@ -14,11 +15,10 @@ function SemanticLayerContent() {
   const [publishing, setPublishing] = useState(false)
   const [embedSecret, setEmbedSecret] = useState<string | null>(null)
 
-  // 1. Fetch Layer
   useEffect(() => {
     async function fetchLayer() {
       try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/v1/projects/${projectId}/semantic-layer`)
+        const res = await fetchApi(`/v1/projects/${projectId}/semantic-layer`)
         if (!res.ok) throw new Error('Failed to fetch semantic layer')
         const data = await res.json()
         setLayer(data.layer)
@@ -32,13 +32,11 @@ function SemanticLayerContent() {
     fetchLayer()
   }, [projectId])
 
-  // 2. Handle Publishing
   const handlePublish = async () => {
     setPublishing(true)
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/v1/projects/${projectId}/semantic-layer/publish`, {
+      const res = await fetchApi(`/v1/projects/${projectId}/semantic-layer/publish`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ layer }), 
       })
       if (!res.ok) throw new Error('Failed to publish')
@@ -52,7 +50,6 @@ function SemanticLayerContent() {
     }
   }
 
-  // 3. Handle Adding a Metric
   const addMetric = () => {
     const newLayer = { ...layer }
     if (!newLayer.metrics) newLayer.metrics = []
@@ -60,7 +57,6 @@ function SemanticLayerContent() {
     setLayer(newLayer)
   }
 
-  // 4. Handle Updating a Metric
   const updateMetric = (index: number, field: string, value: string) => {
     const newLayer = { ...layer }
     newLayer.metrics[index][field] = value
@@ -78,7 +74,6 @@ function SemanticLayerContent() {
           <p className="text-gray-500 mt-1">Review the AI-generated descriptions and define custom metrics.</p>
         </div>
         
-        {/* NEW: Version History Button + Publish Button */}
         <div className="flex gap-4">
           <Link 
             href={`/projects/${projectId}/versions`}
@@ -96,7 +91,6 @@ function SemanticLayerContent() {
         </div>
       </div>
 
-      {/* TABLES SECTION */}
       <h2 className="text-xl font-bold text-gray-800 mb-4">Tables & Columns</h2>
       <div className="space-y-8 mb-12">
         {layer?.tables?.map((table: any) => (
@@ -142,7 +136,6 @@ function SemanticLayerContent() {
         ))}
       </div>
 
-      {/* CUSTOM METRICS SECTION */}
       <div className="bg-white border rounded-lg shadow-sm p-6 mb-12">
         <div className="flex justify-between items-center mb-6">
           <div>

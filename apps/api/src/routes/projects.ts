@@ -9,6 +9,7 @@ import type { AppEnv } from "../types";
 import { eq, sql } from "drizzle-orm"; 
 import { randomBytes } from "node:crypto";
 import { logAudit } from "../lib/audit"; 
+import { encrypt, decrypt } from "../lib/crypto"; // NEW IMPORT
 
 export const projectRoutes = new Hono<AppEnv>();
 
@@ -40,7 +41,7 @@ projectRoutes.post("/connect-db", async (c) => {
 
     const [newProject] = await db.insert(projects).values({
       name,
-      dbConnectionString,
+      dbConnectionStringEncrypted: encrypt(dbConnectionString), // ENCRYPT HERE
     }).returning();
 
     if (!newProject) {
@@ -87,7 +88,6 @@ projectRoutes.post("/:id/semantic-layer/publish", async (c) => {
   const projectId = c.req.param("id");
   const body = await c.req.json().catch(() => ({})); 
 
-  // 1. Update the main layer
   let updatedLayer;
   if (body.layer) {
     const [result] = await db.update(semanticLayers)
@@ -105,7 +105,6 @@ projectRoutes.post("/:id/semantic-layer/publish", async (c) => {
     updatedLayer = result.layer;
   }
 
-  // 2. Save a version snapshot
   const [versionResult] = await db.select({ count: sql<number>`count(*)` })
     .from(semanticLayerVersions)
     .where(eq(semanticLayerVersions.projectId, projectId));
@@ -118,7 +117,6 @@ projectRoutes.post("/:id/semantic-layer/publish", async (c) => {
     versionNumber: nextVersionNumber
   });
 
-  // 3. Generate/Get Secret (existing code)
   const [existingSecret] = await db.select().from(embedSecrets).where(eq(embedSecrets.projectId, projectId));
   let secret = existingSecret?.secret;
   if (!secret) {
@@ -126,7 +124,6 @@ projectRoutes.post("/:id/semantic-layer/publish", async (c) => {
     await db.insert(embedSecrets).values({ projectId, secret });
   }
 
-  // 4. Audit Log (existing code)
   logAudit(projectId, "developer", "semantic_update", { 
     message: `Published semantic layer version ${nextVersionNumber}` 
   }).catch(console.error);

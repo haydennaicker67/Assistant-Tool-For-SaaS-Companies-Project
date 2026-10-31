@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { fetchApi } from '@/utils/api'
 
 export function UpgradeButton({ projectId }: { projectId: string }) {
   const [loading, setLoading] = useState(false)
@@ -8,9 +9,8 @@ export function UpgradeButton({ projectId }: { projectId: string }) {
   const handleUpgrade = async () => {
     setLoading(true)
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/v1/billing/checkout`, {
+      const res = await fetchApi('/v1/billing/checkout', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ projectId, tier: 'growth' })
       })
       const data = await res.json()
