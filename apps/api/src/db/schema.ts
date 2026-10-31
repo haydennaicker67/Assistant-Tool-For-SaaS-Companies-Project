@@ -15,6 +15,10 @@ export const projects = pgTable("projects", {
   name: text("name").notNull(),
   dbConnectionString: text("db_connection_string").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  
+  // NEW: Billing columns for Paystack
+  billingCustomerId: text("billing_customer_id"),
+  planTier: text("plan_tier").default("free").notNull(), // 'free' | 'growth' | 'scale'
 });
 
 // 2. Tenants (End-customers of the SaaS app)

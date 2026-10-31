@@ -29,8 +29,8 @@ export default function NewProjectPage() {
         throw new Error(data.message || 'Failed to connect to database')
       }
 
-      // Redirect to the semantic layer editor for this new project
-      router.push(`/projects/${data.projectId}/semantic-layer`)
+     // Redirect to the homepage, which now shows the project list
+      router.push('/')
       router.refresh()
       
     } catch (err: any) {

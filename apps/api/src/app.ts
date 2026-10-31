@@ -11,6 +11,7 @@ import type { AppEnv } from "./types";
 import { projectRoutes } from "./routes/projects";
 import { queryRoutes } from "./routes/query";
 import { authMiddleware } from "./middleware/auth";
+import { billingRoutes } from "./routes/billing";
 
 /**
  * Builds the Hono app. Exported so tests can construct an app with a
@@ -44,6 +45,7 @@ export function buildApp(env: Env) {
   app.route("/", healthRoutes);
   app.route("/v1/projects", projectRoutes);
   app.route("/v1/query", queryRoutes);
+  app.route("/v1/billing", billingRoutes);
 
   return app;
 }

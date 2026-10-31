@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { db } from '@vizzly-sa/api/src/lib/db'
 import { projects } from '@vizzly-sa/api/src/db/schema'
 import { desc } from 'drizzle-orm'
+import { UpgradeButton } from './components/UpgradeButton'
 
 export default async function Home() {
   const supabase = await createClient()
@@ -29,7 +30,7 @@ export default async function Home() {
         </div>
       </div>
 
-         {allProjects.length > 0 && (
+      {allProjects.length > 0 && (
         <div className="mb-6 flex justify-end">
           <Link 
             href="/projects/new"
@@ -58,10 +59,17 @@ export default async function Home() {
               <div className="p-6 flex-1">
                 <div className="flex justify-between items-start mb-4">
                   <h2 className="text-xl font-bold text-gray-900 truncate">{project.name}</h2>
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                    Active
+                  
+                  {/* Plan Badge */}
+                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                    project.planTier === 'free' ? 'bg-gray-100 text-gray-800' : 
+                    project.planTier === 'growth' ? 'bg-blue-100 text-blue-800' : 
+                    'bg-purple-100 text-purple-800'
+                  }`}>
+                    {project.planTier.toUpperCase()}
                   </span>
                 </div>
+                
                 <p className="text-sm text-gray-500 mb-2 font-mono truncate">
                   ID: {project.id}
                 </p>
@@ -69,19 +77,28 @@ export default async function Home() {
                   Created: {new Date(project.createdAt).toLocaleDateString()}
                 </p>
               </div>
-              <div className="bg-gray-50 px-6 py-3 border-t rounded-b-lg flex justify-end gap-4">
-                <Link 
-                  href={`/projects/${project.id}/semantic-layer`}
-                  className="text-sm font-medium text-blue-600 hover:text-blue-800"
-                >
-                  Edit Layer
-                </Link>
-                <Link 
-                  href={`/projects/${project.id}/dashboard`}
-                  className="text-sm font-medium text-green-600 hover:text-green-800"
-                >
-                  View Dashboard →
-                </Link>
+
+              {/* Card Footer Actions */}
+              <div className="bg-gray-50 px-6 py-3 border-t rounded-b-lg flex justify-between items-center">
+                <div className="flex gap-4">
+                  <Link 
+                    href={`/projects/${project.id}/semantic-layer`}
+                    className="text-sm font-medium text-blue-600 hover:text-blue-800"
+                  >
+                    Edit Layer
+                  </Link>
+                  <Link 
+                    href={`/projects/${project.id}/dashboard`}
+                    className="text-sm font-medium text-green-600 hover:text-green-800"
+                  >
+                    View Dashboard →
+                  </Link>
+                </div>
+                
+                {/* Paystack Upgrade Button - Using Client Component */}
+                {project.planTier === "free" && (
+                  <UpgradeButton projectId={project.id} />
+                )}
               </div>
             </div>
           ))}
