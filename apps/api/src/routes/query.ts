@@ -46,17 +46,17 @@ queryRoutes.post("/nl", authMiddleware, async (c) => {
   logger.info({ question }, "Generating SQL");
   const { sql, explanation } = await generateSQL(question, layerRecord.layer);
 
-  // 3. Validate SQL
+    // 3. Validate and sanitize SQL
   logger.info({ sql }, "Validating SQL");
-  validateSQL(sql, layerRecord.layer);
+  const validatedSql = validateSQL(sql, layerRecord.layer);
 
   // 4. Execute query with RLS
   logger.info("Executing query");
   const start = Date.now();
   let rows: any[];
   try {
-    rows = await queryWithRLS(project.dbConnectionString, claims.tenant_id, async (tx) => {
-      return await tx.unsafe(sql); // unsafe() allows raw string execution
+        rows = await queryWithRLS(project.dbConnectionString, claims.tenant_id, async (tx) => {
+      return await tx.unsafe(validatedSql); // Use the validated SQL here
     });
   } catch (err: any) {
     logger.error({ err, sql }, "Query execution failed");

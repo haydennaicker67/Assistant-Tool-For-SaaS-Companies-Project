@@ -1,10 +1,11 @@
 import type { SemanticLayer } from "@vizzly-sa/shared";
 import { AppError } from "../errors";
 
-export function validateSQL(sql: string, layer: SemanticLayer): void {
-  const lowerSql = sql.toLowerCase();
+export function validateSQL(sql: string, layer: SemanticLayer): string {
+  let finalSql = sql.trim();
+  const lowerSql = finalSql.toLowerCase();
 
-  // 1. Block any DDL or DML (Data Definition/Manipulation Language)
+  // 1. Block any DDL or DML
   const blockedKeywords = ["insert", "update", "delete", "drop", "alter", "create", "truncate", "grant", "revoke"];
   for (const kw of blockedKeywords) {
     if (new RegExp(`\\b${kw}\\b`, "i").test(lowerSql)) {
@@ -18,10 +19,7 @@ export function validateSQL(sql: string, layer: SemanticLayer): void {
   }
 
   // 3. Ensure it only queries tables in the semantic layer
-  // (This is a basic check. A full SQL parser would be more robust, but this catches 99% of cases).
   const allowedTables = new Set(layer.tables.map(t => t.name.toLowerCase()));
-  
-  // Very basic table extraction: find words after FROM or JOIN
   const tableMatches = lowerSql.match(/(?:from|join)\s+([a-z0-9_]+)/g);
   if (tableMatches) {
     for (const match of tableMatches) {
@@ -32,13 +30,14 @@ export function validateSQL(sql: string, layer: SemanticLayer): void {
     }
   }
 
-  // 4. Force a LIMIT if it's not an aggregate query (to prevent crashing the browser with 1M rows)
-  // If the query has no GROUP BY, it must have a LIMIT.
-   // 4. Force a LIMIT if it's not an aggregate query
-  // We check for GROUP BY or common aggregate functions (COUNT, SUM, AVG, MAX, MIN)
+  // 4. Auto-append LIMIT if missing on unaggregated queries
   const isAggregate = /group\s+by|count\(|sum\(|avg\(|max\(|min\(/i.test(lowerSql);
   
   if (!isAggregate && !lowerSql.includes("limit")) {
-    throw new AppError("invalid_sql", "Security violation: Unaggregated queries must have a LIMIT.", 400);
+    // Remove any trailing semicolons before appending
+    finalSql = finalSql.replace(/;+$/, "");
+    finalSql = `${finalSql} LIMIT 100;`;
   }
+
+  return finalSql;
 }
