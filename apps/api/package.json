@@ -23,6 +23,7 @@
     "hono": "^4.6.0",
     "jose": "^5.9.0",
     "openai": "^7.45.1",
+    "paystack-sdk-node": "^0.8.0",
     "pino": "^9.5.0",
     "pino-pretty": "^11.3.0",
     "postgres": "^3.4.9",

@@ -10,6 +10,8 @@ import { AppError } from "../errors";
 import type { AuthEnv } from "../middleware/auth";
 import type { ChartSpec } from "@vizzly-sa/shared";
 import { authMiddleware } from "../middleware/auth";
+import { trackUsage } from "../lib/usage";
+import { checkUsageLimit } from "../lib/limits";
 
 export const queryRoutes = new Hono<AuthEnv>();
 
@@ -24,6 +26,10 @@ queryRoutes.post("/nl", authMiddleware, async (c) => {
   
   // Get the projectId securely from the middleware, not the header
   const projectId = c.get("projectId"); 
+
+  await checkUsageLimit(projectId);
+
+  trackUsage(projectId, claims.tenant_id).catch(console.error);
 
   const body = await c.req.json();
   // Validate the body, but overwrite the projectId with the secure one from middleware
@@ -65,6 +71,8 @@ queryRoutes.post("/nl", authMiddleware, async (c) => {
   }
   
   const queryMs = Date.now() - start;
+
+  //trackUsage(projectId, claims.tenant_id).catch(console.error);
 
   // 5. Format ChartSpec
   const columns = rows.length > 0 

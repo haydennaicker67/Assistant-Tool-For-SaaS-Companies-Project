@@ -46,8 +46,9 @@ export const embedSecrets = pgTable("embed_secrets", {
 export const usageEvents = pgTable("usage_events", {
   id: uuid("id").primaryKey().defaultRandom(),
   projectId: uuid("project_id").references(() => projects.id).notNull(),
-  tenantId: uuid("tenant_id").references(() => tenants.id).notNull(),
-  eventType: text("event_type").notNull(), // "query" | "export" etc.
+  // Removed the reference to tenants. Tenant IDs live in the customer's DB, not ours.
+  tenantId: text("tenant_id").notNull(), 
+  eventType: text("event_type").notNull(), 
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

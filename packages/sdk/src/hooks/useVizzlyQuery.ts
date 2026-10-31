@@ -25,6 +25,12 @@ export function useVizzlyQuery() {
 
       if (!res.ok) {
         const errBody = await res.json();
+        
+        // If limit exceeded, throw a specific error
+        if (errBody.code === "limit_exceeded") {
+          throw new Error("LIMIT_EXCEEDED");
+        }
+        
         throw new Error(errBody.message || "Query failed");
       }
 
