@@ -94,11 +94,19 @@ projectRoutes.get("/:id/semantic-layer", async (c) => {
 
 projectRoutes.post("/:id/semantic-layer/publish", async (c) => {
   const projectId = c.req.param("id");
+  const body = await c.req.json().catch(() => ({})); // Handle empty body
 
-  // 1. Update layer to published
-  await db.update(semanticLayers)
-    .set({ published: true, updatedAt: new Date() })
-    .where(eq(semanticLayers.projectId, projectId));
+  // 1. Update layer to published (and save the new edits if provided)
+  if (body.layer) {
+    await db.update(semanticLayers)
+      .set({ layer: body.layer, published: true, updatedAt: new Date() })
+      .where(eq(semanticLayers.projectId, projectId));
+  } else {
+    await db.update(semanticLayers)
+      .set({ published: true, updatedAt: new Date() })
+      .where(eq(semanticLayers.projectId, projectId));
+  }
+
 
   // 2. Check if secret already exists
   const [existingSecret] = await db.select().from(embedSecrets).where(eq(embedSecrets.projectId, projectId));

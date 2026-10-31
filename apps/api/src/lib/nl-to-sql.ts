@@ -11,6 +11,11 @@ export interface NLSQLResult {
 
 export async function generateSQL(question: string, layer: SemanticLayer): Promise<NLSQLResult> {
   const schemaPrompt = JSON.stringify(layer.tables, null, 2);
+  
+  // Add the custom metrics to the prompt if they exist
+  const metricsPrompt = layer.metrics && layer.metrics.length > 0 
+    ? JSON.stringify(layer.metrics, null, 2) 
+    : "No custom metrics defined.";
 
   let retries = 3;
   while (retries > 0) {
@@ -19,10 +24,13 @@ export async function generateSQL(question: string, layer: SemanticLayer): Promi
         model: "gemini-3.8-flash",
         contents: `Question: ${question}`,
         config: {
-          systemInstruction: `You are an expert PostgreSQL developer. Write a single, safe SELECT query to answer the user's question using ONLY the provided schema.
+          systemInstruction: `You are an expert PostgreSQL developer. Write a single, safe SELECT query to answer the user's question using ONLY the provided schema and custom metrics.
           
 Schema:
 ${schemaPrompt}
+
+Custom Metrics (Use these exact SQL expressions when the user asks for these concepts):
+${metricsPrompt}
 
 Rules:
 - Return ONLY a SELECT statement.
