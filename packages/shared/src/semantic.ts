@@ -18,16 +18,13 @@ export type ColumnType =
   | "unknown";
 
 export interface ColumnMeta {
-  /** Actual Postgres column name, e.g. "total_amount" */
   name: string;
   type: ColumnType;
-  /** Human-readable description, e.g. "Total order value in ZAR, excluding VAT" */
   description: string;
-  /** Whether this column can be used as a dimension (group by) */
   isDimension: boolean;
-  /** Whether this column can be aggregated as a measure */
   isMeasure: boolean;
-  /** Optional example values, used to help the LLM disambiguate */
+  // NEW: If true, the AI will never see or query this column
+  isSensitive?: boolean; 
   sampleValues?: string[];
 }
 

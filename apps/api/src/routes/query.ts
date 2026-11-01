@@ -15,12 +15,13 @@ import { checkUsageLimit } from "../lib/limits";
 import { generateCacheKey, getCachedQuery, setCachedQuery } from "../lib/cache";
 import { logAudit } from "../lib/audit";
 import { decrypt } from "../lib/crypto";
+import { queryRatelimit } from "../lib/ratelimit"; // S14 NEW
 import crypto from "node:crypto";
 
 export const queryRoutes = new Hono<AuthEnv>();
 
 const nlRequestSchema = z.object({
-  question: z.string().min(1),
+  question: z.string().min(1).max(500), // S14 FIX: Cap length
   projectId: z.string().uuid(),
   dateRange: z.object({
     from: z.string(),
@@ -32,6 +33,12 @@ queryRoutes.post("/nl", authMiddleware, async (c) => {
   const logger = c.get("logger");
   const claims = c.get("embedClaims"); 
   const projectId = c.get("projectId"); 
+
+  // S14 FIX: Rate limit by tenant_id
+  const { success } = await queryRatelimit.limit(claims.tenant_id);
+  if (!success) {
+    throw new AppError("rate_limited", "Too many requests. Please wait a moment and try again.", 429);
+  }
 
   await checkUsageLimit(projectId);
   trackUsage(projectId, claims.tenant_id).catch(console.error);
@@ -45,17 +52,14 @@ queryRoutes.post("/nl", authMiddleware, async (c) => {
 
   const { question, dateRange } = parsed.data;
 
-  // 1. Fetch project & layer FIRST so we can build the secure cache key
   const [project] = await db.select().from(projects).where(eq(projects.id, projectId));
   if (!project) throw new AppError("invalid_request", "Project not found", 404);
 
   const [layerRecord] = await db.select().from(semanticLayers).where(eq(semanticLayers.projectId, projectId));
   if (!layerRecord) throw new AppError("invalid_request", "Semantic layer not found", 404);
 
-  // 2. S4 FIX: Generate a hash of the semantic layer to invalidate cache if it changes
   const layerHash = crypto.createHash("sha256").update(JSON.stringify(layerRecord.layer)).digest("hex");
   
-  // 3. S4 FIX: Include projectId, role, and layerHash in the cache key
   const cacheKey = generateCacheKey(
     projectId, 
     claims.tenant_id, 

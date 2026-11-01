@@ -9,9 +9,6 @@ export interface RawSchema {
   foreignColumn?: string | null;
 }
 
-/**
- * Connects to the customer's DB and pulls raw schema metadata, including foreign keys.
- */
 export async function introspectSchema(connectionString: string): Promise<RawSchema[]> {
   const sql = postgres(connectionString, { max: 1, prepare: false, ssl: "require" });
 
@@ -35,6 +32,27 @@ export async function introspectSchema(connectionString: string): Promise<RawSch
       WHERE c.table_schema = 'public'
         AND c.table_name NOT IN ('leak_test_orders', 'schema_migrations', 'drizzle_migrations')
       ORDER BY c.table_name, c.ordinal_position
+    `;
+    return result;
+  } finally {
+    await sql.end();
+  }
+}
+
+/**
+ * S11 FIX: Checks if every table in the public schema has RLS enabled.
+ */
+export async function verifyRLSCoverage(connectionString: string): Promise<{ tableName: string; rlsEnabled: boolean }[]> {
+  const sql = postgres(connectionString, { max: 1, prepare: false, ssl: "require" });
+
+  try {
+    const result = await sql<{ tableName: string; rlsEnabled: boolean }[]>`
+      SELECT 
+        tablename as "tableName", 
+        rowsecurity as "rlsEnabled"
+      FROM pg_tables
+      WHERE schemaname = 'public'
+        AND tablename NOT IN ('leak_test_orders', 'schema_migrations', 'drizzle_migrations')
     `;
     return result;
   } finally {

@@ -14,10 +14,19 @@ export async function generateSQL(
   layer: SemanticLayer,
   dateRange?: { from: string; to: string }
 ): Promise<NLSQLResult> {
-  const schemaPrompt = JSON.stringify(layer.tables, null, 2);
-  
-  const metricsPrompt = layer.metrics && layer.metrics.length > 0 
-    ? JSON.stringify(layer.metrics, null, 2) 
+
+  // S10 FIX: Strip out sensitive columns before sending to the AI
+  const safeLayer = {
+    ...layer,
+    tables: layer.tables.map(table => ({
+      ...table,
+      columns: table.columns.filter(col => !col.isSensitive)
+    }))
+  };
+
+const schemaPrompt = JSON.stringify(safeLayer.tables, null, 2);
+  const metricsPrompt = safeLayer.metrics && safeLayer.metrics.length > 0 
+    ? JSON.stringify(safeLayer.metrics, null, 2) 
     : "No custom metrics defined.";
 
   const dateInstruction = dateRange 

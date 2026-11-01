@@ -2,16 +2,17 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { db } from "../lib/db";
 import { embedSecrets, projects, semanticLayers, semanticLayerVersions } from "../db/schema";
-import { introspectSchema } from "../lib/schema-introspect";
+import { introspectSchema, verifyRLSCoverage } from "../lib/schema-introspect"; // NEW
 import { generateSemanticLayer } from "../lib/semantic-gen";
 import { AppError } from "../errors";
-import type { AuthUserEnv } from "../middleware/require-user"; // NEW
+import type { AuthUserEnv } from "../middleware/require-user";
 import { eq, sql } from "drizzle-orm"; 
 import { randomBytes } from "node:crypto";
 import { logAudit } from "../lib/audit"; 
 import { encrypt, decrypt } from "../lib/crypto";
+import { validateDatabaseUrl } from "../lib/url-validator";
 
-export const projectRoutes = new Hono<AuthUserEnv>(); // NEW type
+export const projectRoutes = new Hono<AuthUserEnv>();
 
 const connectSchema = z.object({
   name: z.string().min(1),
@@ -20,7 +21,7 @@ const connectSchema = z.object({
 
 projectRoutes.post("/connect-db", async (c) => {
   const logger = c.get("logger");
-  const userId = c.get("userId"); // S1 FIX: Get the real user
+  const userId = c.get("userId");
   const body = await c.req.json();
   
   const parsed = connectSchema.safeParse(body);
@@ -29,9 +30,30 @@ projectRoutes.post("/connect-db", async (c) => {
   }
 
   const { name, dbConnectionString } = parsed.data;
-  logger.info("Connecting to customer DB and introspecting...");
+
+  // S9 FIX: Block SSRF attempts
+  try {
+    validateDatabaseUrl(dbConnectionString);
+  } catch (err: any) {
+    throw new AppError("invalid_request", err.message, 400);
+  }
+  
+  logger.info("Connecting to customer DB and verifying RLS...");
   
   try {
+    // S11 FIX: Verify RLS is enabled on all tables
+    const rlsStatus = await verifyRLSCoverage(dbConnectionString);
+    const unprotectedTables = rlsStatus.filter(t => !t.rlsEnabled);
+    
+    if (unprotectedTables.length > 0) {
+      const tableNames = unprotectedTables.map(t => t.tableName).join(", ");
+      throw new AppError(
+        "invalid_request", 
+        `Security Error: The following tables do not have Row-Level Security enabled: ${tableNames}. Please enable RLS before connecting.`, 
+        400
+      );
+    }
+
     const rawSchema = await introspectSchema(dbConnectionString);
     if (rawSchema.length === 0) {
       throw new AppError("invalid_request", "No tables found in the public schema of this database.", 400);
@@ -43,7 +65,7 @@ projectRoutes.post("/connect-db", async (c) => {
     const [newProject] = await db.insert(projects).values({
       name,
       dbConnectionStringEncrypted: encrypt(dbConnectionString),
-      userId: userId, // S2 FIX: Save the owner
+      userId: userId, 
     }).returning();
 
     if (!newProject) {
@@ -72,7 +94,6 @@ projectRoutes.get("/:id/semantic-layer", async (c) => {
   const userId = c.get("userId");
   const projectId = c.req.param("id");
   
-  // S2 FIX: Verify ownership
   const [project] = await db.select().from(projects).where(eq(projects.id, projectId));
   if (!project || project.userId !== userId) {
     throw new AppError("invalid_request", "Project not found or unauthorized", 404);
@@ -95,7 +116,6 @@ projectRoutes.post("/:id/semantic-layer/publish", async (c) => {
   const projectId = c.req.param("id");
   const body = await c.req.json().catch(() => ({})); 
 
-  // S2 FIX: Verify ownership
   const [project] = await db.select().from(projects).where(eq(projects.id, projectId));
   if (!project || project.userId !== userId) {
     throw new AppError("invalid_request", "Project not found or unauthorized", 404);
@@ -137,7 +157,6 @@ projectRoutes.post("/:id/semantic-layer/publish", async (c) => {
     await db.insert(embedSecrets).values({ projectId, secret });
   }
 
-  // S2 FIX: Audit log with real user
   logAudit(projectId, userId, "semantic_update", { 
     message: `Published semantic layer version ${nextVersionNumber}` 
   }).catch(console.error);

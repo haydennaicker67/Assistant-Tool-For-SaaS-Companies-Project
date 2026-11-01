@@ -122,12 +122,13 @@ function SemanticLayerContent() {
             </div>
             <table className="w-full text-sm text-left">
               <thead className="text-xs text-gray-700 uppercase bg-gray-50 border-b">
-                <tr>
+                  <tr>
                   <th className="px-4 py-3">Column</th>
                   <th className="px-4 py-3">Type</th>
                   <th className="px-4 py-3">Description</th>
                   <th className="px-4 py-3 text-center">Dimension</th>
                   <th className="px-4 py-3 text-center">Measure</th>
+                  <th className="px-4 py-3 text-center text-red-500">Sensitive</th> {/* NEW */}
                 </tr>
               </thead>
               <tbody>
@@ -145,6 +146,16 @@ function SemanticLayerContent() {
                     </td>
                     <td className="px-4 py-3 text-center">
                       <input type="checkbox" defaultChecked={col.isDimension} onChange={(e) => { col.isDimension = e.target.checked }} className="w-4 h-4 text-blue-600" />
+                    </td>
+                     {/* NEW: Sensitive Toggle */}
+                    <td className="px-4 py-3 text-center">
+                      <input 
+                        type="checkbox" 
+                        defaultChecked={col.isSensitive} 
+                        onChange={(e) => { col.isSensitive = e.target.checked }} 
+                        className="w-4 h-4 text-red-600" 
+                        title="If checked, the AI will never see this column"
+                      />
                     </td>
                     <td className="px-4 py-3 text-center">
                       <input type="checkbox" defaultChecked={col.isMeasure} onChange={(e) => { col.isMeasure = e.target.checked }} className="w-4 h-4 text-blue-600" />
