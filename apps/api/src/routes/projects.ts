@@ -2,15 +2,15 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { db } from "../lib/db";
 import { embedSecrets, projects, semanticLayers, semanticLayerVersions } from "../db/schema";
-import { introspectSchema, verifyRLSCoverage } from "../lib/schema-introspect"; // NEW
+import { introspectSchema, verifyRLSCoverage } from "../lib/schema-introspect";
 import { generateSemanticLayer } from "../lib/semantic-gen";
 import { AppError } from "../errors";
 import type { AuthUserEnv } from "../middleware/require-user";
 import { eq, sql } from "drizzle-orm"; 
-import { randomBytes } from "node:crypto";
 import { logAudit } from "../lib/audit"; 
 import { encrypt, decrypt } from "../lib/crypto";
 import { validateDatabaseUrl } from "../lib/url-validator";
+import { generateKeyPairSync } from "node:crypto";
 
 export const projectRoutes = new Hono<AuthUserEnv>();
 
@@ -31,7 +31,6 @@ projectRoutes.post("/connect-db", async (c) => {
 
   const { name, dbConnectionString } = parsed.data;
 
-  // S9 FIX: Block SSRF attempts
   try {
     validateDatabaseUrl(dbConnectionString);
   } catch (err: any) {
@@ -41,7 +40,6 @@ projectRoutes.post("/connect-db", async (c) => {
   logger.info("Connecting to customer DB and verifying RLS...");
   
   try {
-    // S11 FIX: Verify RLS is enabled on all tables
     const rlsStatus = await verifyRLSCoverage(dbConnectionString);
     const unprotectedTables = rlsStatus.filter(t => !t.rlsEnabled);
     
@@ -102,12 +100,13 @@ projectRoutes.get("/:id/semantic-layer", async (c) => {
   const [layerRecord] = await db.select().from(semanticLayers).where(eq(semanticLayers.projectId, projectId));
   if (!layerRecord) throw new AppError("invalid_request", "Semantic layer not found", 404);
 
-  const [secretRecord] = await db.select().from(embedSecrets).where(eq(embedSecrets.projectId, projectId));
+  // S7 FIX: We no longer return the secret here. Keys are only returned once on publish.
+  const [keyRecord] = await db.select().from(embedSecrets).where(eq(embedSecrets.projectId, projectId));
 
   return c.json({
     layer: layerRecord.layer,
     published: layerRecord.published,
-    secret: secretRecord?.secret || null
+    hasKeys: !!keyRecord, // Just tell the UI if keys exist
   });
 });
 
@@ -150,16 +149,33 @@ projectRoutes.post("/:id/semantic-layer/publish", async (c) => {
     versionNumber: nextVersionNumber
   });
 
-  const [existingSecret] = await db.select().from(embedSecrets).where(eq(embedSecrets.projectId, projectId));
-  let secret = existingSecret?.secret;
-  if (!secret) {
-    secret = randomBytes(32).toString("hex");
-    await db.insert(embedSecrets).values({ projectId, secret });
+  // S7 FIX: Generate RSA keys if they don't exist
+  let privateKeyPem: string | null = null;
+  const [existingKey] = await db.select().from(embedSecrets).where(eq(embedSecrets.projectId, projectId));
+  
+  if (!existingKey) {
+    const { publicKey, privateKey } = generateKeyPairSync("rsa", {
+      modulusLength: 2048,
+      publicKeyEncoding: { type: "spki", format: "pem" },
+      privateKeyEncoding: { type: "pkcs8", format: "pem" },
+    });
+
+    await db.insert(embedSecrets).values({ 
+      projectId, 
+      publicKey: publicKey 
+    });
+
+    // For internal testing only, store the encrypted private key
+    await db.update(projects)
+      .set({ embedPrivateKeyEncrypted: encrypt(privateKey) })
+      .where(eq(projects.id, projectId));
+
+    privateKeyPem = privateKey;
   }
 
   logAudit(projectId, userId, "semantic_update", { 
     message: `Published semantic layer version ${nextVersionNumber}` 
   }).catch(console.error);
 
-  return c.json({ ok: true, secret, version: nextVersionNumber });
+  return c.json({ ok: true, privateKey: privateKeyPem, version: nextVersionNumber });
 });

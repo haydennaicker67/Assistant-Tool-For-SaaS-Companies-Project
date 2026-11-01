@@ -6,7 +6,6 @@ import { db } from "../lib/db";
 import { embedSecrets } from "../db/schema";
 import { eq } from "drizzle-orm";
 
-// Extend the Hono context to include the verified claims
 export type AuthEnv = AppEnv & {
   Variables: AppEnv["Variables"] & {
     embedClaims: EmbedClaims;
@@ -27,23 +26,22 @@ export const authMiddleware: MiddlewareHandler<AuthEnv> = async (c, next) => {
     throw new AppError("invalid_token", "Missing bearer token", 401);
   }
 
-  // The SDK sends the project ID in the header
   const projectId = c.req.header("x-project-id");
   if (!projectId) {
     throw new AppError("invalid_request", "Missing x-project-id header", 400);
   }
 
   try {
-    // 1. Look up the secret for this project in the database
-    const [secretRecord] = await db.select().from(embedSecrets).where(eq(embedSecrets.projectId, projectId));
+    // S7 FIX: Look up the PUBLIC key for this project
+    const [keyRecord] = await db.select().from(embedSecrets).where(eq(embedSecrets.projectId, projectId));
     
-    if (!secretRecord) {
-      throw new AppError("invalid_token", "No embed secret found for this project", 401);
+    if (!keyRecord) {
+      throw new AppError("invalid_token", "No RSA public key found for this project", 401);
     }
 
-    // 2. Verify the token using the project's specific secret
+    // S7 FIX: Verify using the public key
     const payload = await verifyEmbedToken(token, {
-      secret: secretRecord.secret,
+      publicKey: keyRecord.publicKey,
       projectId: projectId
     });
 

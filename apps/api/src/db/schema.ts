@@ -17,11 +17,14 @@ export const projects = pgTable("projects", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
   
   // NEW: Ownership (S2)
-  userId: uuid("user_id").notNull(), // References auth.users in Supabase
+  userId: uuid("user_id").notNull(), 
   
   // Billing columns for Paystack
   billingCustomerId: text("billing_customer_id"),
   planTier: text("plan_tier").default("free").notNull(), 
+
+  // S7 FIX: Store the RSA private key (encrypted) for the internal Test Dashboard
+  embedPrivateKeyEncrypted: text("embed_private_key_encrypted"),
 });
 
 // 2. Tenants (End-customers of the SaaS app)
@@ -45,7 +48,8 @@ export const semanticLayers = pgTable("semantic_layers", {
 export const embedSecrets = pgTable("embed_secrets", {
   id: uuid("id").primaryKey().defaultRandom(),
   projectId: uuid("project_id").references(() => projects.id).notNull(),
-  secret: text("secret").notNull(),
+  // S7 FIX: Store the public key instead of the shared secret
+  publicKey: text("public_key").notNull(), 
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

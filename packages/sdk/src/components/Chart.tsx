@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import type { ChartSpec } from "@vizzly-sa/shared";
+import { useVizzlyConfig } from "../context"; // NEW IMPORT
 
 // --- SUB-COMPONENT: TABLE ---
 function TableView({ data }: { data: ChartSpec }) {
@@ -86,11 +87,8 @@ function LineChartView({ data }: { data: ChartSpec }) {
   return (
     <div style={{ width: '100%', overflowX: 'auto' }}>
       <svg viewBox={`0 0 ${width} ${height}`} style={{ width: '100%', height: '300px' }}>
-        {/* X-Axis Line */}
         <line x1={padding} y1={height - padding} x2={width - padding} y2={height - padding} stroke="#e5e7eb" strokeWidth="2" />
-        {/* Line */}
         <polyline fill="none" stroke="#3b82f6" strokeWidth="3" points={points} strokeLinejoin="round" strokeLinecap="round" />
-        {/* Dots */}
         {data.rows.map((row, i) => {
           const x = padding + (i * ((width - padding * 2) / Math.max(data.rows.length - 1, 1)));
           const y = height - padding - ((Number(row[valueKey]) || 0) / maxValue) * (height - padding * 2);
@@ -158,10 +156,10 @@ function PieChartView({ data }: { data: ChartSpec }) {
 
 // --- MAIN COMPONENT ---
 export function Chart({ data }: { data: ChartSpec }) {
-  // State to allow the user to toggle chart type dynamically
+  const { role } = useVizzlyConfig(); // S12 FIX: Get the role
   const [activeChartType, setActiveChartType] = useState<"table" | "bar" | "line" | "pie">(data.chartType as any || "table");
 
-      const downloadCSV = () => {
+  const downloadCSV = () => {
     if (!data || data.rows.length === 0) return;
 
     const headers = data.columns.map(c => c.label).join(",");
@@ -173,22 +171,15 @@ export function Chart({ data }: { data: ChartSpec }) {
         // S23 FIX: Neutralize CSV injection and handle quoting
         if (typeof val === "string") {
           let strVal = val;
-          
-          // Prefix with a single quote if it starts with a dangerous character
           if (/^[=+\-@]/.test(strVal)) {
             strVal = `'${strVal}`;
           }
-          
-          // Escape internal quotes
           strVal = strVal.replace(/"/g, '""');
-          
-          // Wrap in quotes if it contains a comma, newline, or quote
           if (/[",\n]/.test(strVal)) {
             return `"${strVal}"`;
           }
           return strVal;
         }
-        
         return val ?? "";
       }).join(",");
     });
@@ -203,11 +194,10 @@ export function Chart({ data }: { data: ChartSpec }) {
     link.click();
     document.body.removeChild(link);
   };
-  
+
   return (
     <div className="vizzly-chart" style={{ marginTop: '1rem' }}>
       
-      {/* Header: Explanation, Type Switcher, Export */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem', gap: '1rem' }}>
         <div style={{ flex: 1 }}>
           {data.meta.explanation && (
@@ -218,7 +208,6 @@ export function Chart({ data }: { data: ChartSpec }) {
         </div>
         
         <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-          {/* Chart Type Switcher */}
           {data.rows.length > 0 && (
             <select 
               value={activeChartType} 
@@ -232,8 +221,8 @@ export function Chart({ data }: { data: ChartSpec }) {
             </select>
           )}
 
-          {/* Export Button */}
-          {data.rows.length > 0 && (
+          {/* S12 FIX: Only show Export CSV if role is editor or admin */}
+          {data.rows.length > 0 && (role === "editor" || role === "admin") && (
             <button
               onClick={downloadCSV}
               style={{ padding: '0.25rem 0.75rem', fontSize: '0.75rem', fontWeight: '500', color: '#374151', backgroundColor: '#f3f4f6', border: '1px solid #d1d5db', borderRadius: '0.375rem', cursor: 'pointer', whiteSpace: 'nowrap' }}
@@ -244,13 +233,11 @@ export function Chart({ data }: { data: ChartSpec }) {
         </div>
       </div>
 
-      {/* Render the active chart type */}
       {activeChartType === "bar" && <BarChartView data={data} />}
       {activeChartType === "line" && <LineChartView data={data} />}
       {activeChartType === "pie" && <PieChartView data={data} />}
       {activeChartType === "table" && <TableView data={data} />}
 
-      {/* Footer Meta */}
       <div style={{ marginTop: '0.75rem', fontSize: '0.75rem', color: '#6b7280', display: 'flex', justifyContent: 'space-between' }}>
         <span>
           {data.meta.rowCount} rows · {data.meta.queryMs}ms 

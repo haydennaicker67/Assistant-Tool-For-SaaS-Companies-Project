@@ -4,7 +4,7 @@ import { useEffect, useState, Suspense } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { fetchApi } from '@/utils/api'
-import YAML from 'yaml' // NEW IMPORT
+import YAML from 'yaml'
 
 function SemanticLayerContent() {
   const params = useParams()
@@ -14,7 +14,7 @@ function SemanticLayerContent() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [publishing, setPublishing] = useState(false)
-  const [embedSecret, setEmbedSecret] = useState<string | null>(null)
+  const [privateKey, setPrivateKey] = useState<string | null>(null) // Renamed from embedSecret
 
   useEffect(() => {
     async function fetchLayer() {
@@ -23,7 +23,6 @@ function SemanticLayerContent() {
         if (!res.ok) throw new Error('Failed to fetch semantic layer')
         const data = await res.json()
         setLayer(data.layer)
-        if (data.secret) setEmbedSecret(data.secret) 
       } catch (err: any) {
         setError(err.message)
       } finally {
@@ -42,7 +41,10 @@ function SemanticLayerContent() {
       })
       if (!res.ok) throw new Error('Failed to publish')
       const data = await res.json()
-      setEmbedSecret(data.secret)
+      
+      // Only set the private key if a new one was generated
+      if (data.privateKey) setPrivateKey(data.privateKey);
+      
       alert(`Successfully published version ${data.version || ''}!`)
     } catch (err: any) {
       alert(err.message)
@@ -51,7 +53,6 @@ function SemanticLayerContent() {
     }
   }
 
-  // NEW: YAML Export
   const downloadYAML = () => {
     if (!layer) return;
     const yamlString = YAML.stringify(layer);
@@ -122,13 +123,13 @@ function SemanticLayerContent() {
             </div>
             <table className="w-full text-sm text-left">
               <thead className="text-xs text-gray-700 uppercase bg-gray-50 border-b">
-                  <tr>
+                <tr>
                   <th className="px-4 py-3">Column</th>
                   <th className="px-4 py-3">Type</th>
                   <th className="px-4 py-3">Description</th>
                   <th className="px-4 py-3 text-center">Dimension</th>
                   <th className="px-4 py-3 text-center">Measure</th>
-                  <th className="px-4 py-3 text-center text-red-500">Sensitive</th> {/* NEW */}
+                  <th className="px-4 py-3 text-center text-red-500">Sensitive</th>
                 </tr>
               </thead>
               <tbody>
@@ -147,7 +148,9 @@ function SemanticLayerContent() {
                     <td className="px-4 py-3 text-center">
                       <input type="checkbox" defaultChecked={col.isDimension} onChange={(e) => { col.isDimension = e.target.checked }} className="w-4 h-4 text-blue-600" />
                     </td>
-                     {/* NEW: Sensitive Toggle */}
+                    <td className="px-4 py-3 text-center">
+                      <input type="checkbox" defaultChecked={col.isMeasure} onChange={(e) => { col.isMeasure = e.target.checked }} className="w-4 h-4 text-blue-600" />
+                    </td>
                     <td className="px-4 py-3 text-center">
                       <input 
                         type="checkbox" 
@@ -156,9 +159,6 @@ function SemanticLayerContent() {
                         className="w-4 h-4 text-red-600" 
                         title="If checked, the AI will never see this column"
                       />
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <input type="checkbox" defaultChecked={col.isMeasure} onChange={(e) => { col.isMeasure = e.target.checked }} className="w-4 h-4 text-blue-600" />
                     </td>
                   </tr>
                 ))}
@@ -231,26 +231,26 @@ function SemanticLayerContent() {
         )}
       </div>
 
-      {embedSecret && (
+      {privateKey && (
         <div className="mt-12 p-6 bg-blue-50 border border-blue-200 rounded-lg shadow-sm">
-          <h2 className="text-xl font-bold text-blue-900 mb-2">Success! Your Embed Secret</h2>
+          <h2 className="text-xl font-bold text-blue-900 mb-2">Success! Your RSA Private Key</h2>
           <p className="text-sm text-blue-800 mb-4">
-            Save this secret and put it in your backend's <code>.env</code> file. 
-            You will use it to sign JWTs for your end-users. It will only be shown once.
+            Save this key and put it in your backend's <code>.env</code> file. 
+            You will use it to sign JWTs for your end-users. <strong>This will only be shown once.</strong>
           </p>
           <div className="flex gap-2 mb-6">
-            <input 
-              type="text" 
+            <textarea 
               readOnly 
-              value={embedSecret}
-              className="w-full px-3 py-2 font-mono text-sm bg-white border border-blue-300 rounded-md focus:outline-none"
+              value={privateKey}
+              rows={5}
+              className="w-full px-3 py-2 font-mono text-xs bg-white border border-blue-300 rounded-md focus:outline-none"
             />
             <button 
               onClick={() => {
-                navigator.clipboard.writeText(embedSecret)
+                navigator.clipboard.writeText(privateKey)
                 alert('Copied to clipboard!')
               }}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 whitespace-nowrap"
+              className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 whitespace-nowrap self-start"
             >
               Copy
             </button>

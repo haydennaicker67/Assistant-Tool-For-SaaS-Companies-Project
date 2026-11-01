@@ -1,4 +1,4 @@
-import React, { createContext, useContext } from "react";
+import React, { createContext, useContext, useMemo } from "react";
 
 interface VizzlyConfig {
   embedToken: string;
@@ -6,14 +6,34 @@ interface VizzlyConfig {
   projectId: string;
 }
 
-const VizzlyContext = createContext<VizzlyConfig | null>(null);
+interface VizzlyContextType extends VizzlyConfig {
+  role: "viewer" | "editor" | "admin" | null;
+}
+
+const VizzlyContext = createContext<VizzlyContextType | null>(null);
 
 export function VizzlyProvider({ 
   children, 
   ...config 
 }: VizzlyConfig & { children: React.ReactNode }) {
+  // S12 FIX: Decode the JWT payload to get the role (no verification needed on client)
+  const role = useMemo(() => {
+    try {
+      const base64Url = config.embedToken.split('.')[1];
+      if (!base64Url) return null;
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
+          return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+      }).join(''));
+      const payload = JSON.parse(jsonPayload);
+      return payload.role || null;
+    } catch {
+      return null;
+    }
+  }, [config.embedToken]);
+
   return (
-    <VizzlyContext.Provider value={config}>
+    <VizzlyContext.Provider value={{ ...config, role }}>
       {children}
     </VizzlyContext.Provider>
   );
