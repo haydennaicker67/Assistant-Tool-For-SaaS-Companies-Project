@@ -8,7 +8,7 @@ export function useVizzlyQuery() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const executeNLQuery = useCallback(async (question: string) => {
+  const executeNLQuery = useCallback(async (question: string, dateRange?: { from: string; to: string }) => {
     setLoading(true);
     setError(null);
 
@@ -20,17 +20,14 @@ export function useVizzlyQuery() {
           "Authorization": `Bearer ${embedToken}`,
           "x-project-id": projectId,
         },
-        body: JSON.stringify({ question }),
+        body: JSON.stringify({ question, projectId, dateRange }),
       });
 
       if (!res.ok) {
         const errBody = await res.json();
-        
-        // If limit exceeded, throw a specific error
         if (errBody.code === "limit_exceeded") {
           throw new Error("LIMIT_EXCEEDED");
         }
-        
         throw new Error(errBody.message || "Query failed");
       }
 

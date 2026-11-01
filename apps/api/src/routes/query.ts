@@ -21,6 +21,10 @@ export const queryRoutes = new Hono<AuthEnv>();
 const nlRequestSchema = z.object({
   question: z.string().min(1),
   projectId: z.string().uuid(),
+  dateRange: z.object({
+    from: z.string(),
+    to: z.string()
+  }).optional()
 });
 
 queryRoutes.post("/nl", authMiddleware, async (c) => {
@@ -38,9 +42,10 @@ queryRoutes.post("/nl", authMiddleware, async (c) => {
     throw new AppError("invalid_request", "Invalid payload", 400, parsed.error.message);
   }
 
-  const { question } = parsed.data;
+  const { question, dateRange } = parsed.data;
 
-  const cacheKey = generateCacheKey(claims.tenant_id, question);
+  // Include dateRange in the cache key so we don't serve cached data for a different date range
+  const cacheKey = generateCacheKey(claims.tenant_id, question + (dateRange ? `:${dateRange.from}:${dateRange.to}` : ""));
   const cachedResult = await getCachedQuery(cacheKey);
   
   if (cachedResult) {
@@ -59,8 +64,8 @@ queryRoutes.post("/nl", authMiddleware, async (c) => {
   const [layerRecord] = await db.select().from(semanticLayers).where(eq(semanticLayers.projectId, projectId));
   if (!layerRecord) throw new AppError("invalid_request", "Semantic layer not found", 404);
 
-  logger.info({ question }, "Generating SQL");
-  const { sql, explanation } = await generateSQL(question, layerRecord.layer);
+  logger.info({ question, dateRange }, "Generating SQL");
+  const { sql, explanation } = await generateSQL(question, layerRecord.layer, dateRange);
 
   logger.info({ sql }, "Validating SQL");
   const validatedSql = validateSQL(sql, layerRecord.layer);
@@ -88,14 +93,12 @@ queryRoutes.post("/nl", authMiddleware, async (c) => {
       }))
     : [];
 
-  // SMART AUTO-DETECTION
   let chartType: "table" | "bar" | "line" | "pie" = "table";
   const lowerSql = sql.toLowerCase();
   
   if (lowerSql.includes("group by") && columns.length >= 2) {
-    chartType = "bar"; // Default grouping to bar
+    chartType = "bar";
     
-    // If it looks like a time series (has 'date', 'month', 'year'), use line chart
     if (
       lowerSql.includes("date") || 
       lowerSql.includes("month") || 

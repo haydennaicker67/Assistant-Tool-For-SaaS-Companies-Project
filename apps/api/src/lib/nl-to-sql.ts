@@ -9,13 +9,20 @@ export interface NLSQLResult {
   explanation: string;
 }
 
-export async function generateSQL(question: string, layer: SemanticLayer): Promise<NLSQLResult> {
+export async function generateSQL(
+  question: string, 
+  layer: SemanticLayer,
+  dateRange?: { from: string; to: string }
+): Promise<NLSQLResult> {
   const schemaPrompt = JSON.stringify(layer.tables, null, 2);
   
-  // Add the custom metrics to the prompt if they exist
   const metricsPrompt = layer.metrics && layer.metrics.length > 0 
     ? JSON.stringify(layer.metrics, null, 2) 
     : "No custom metrics defined.";
+
+  const dateInstruction = dateRange 
+    ? `IMPORTANT: The user has selected a date range. You MUST add a WHERE clause filtering the main timestamp column (e.g., created_at) between '${dateRange.from}' and '${dateRange.to}'.`
+    : "";
 
   let retries = 3;
   while (retries > 0) {
@@ -31,6 +38,8 @@ ${schemaPrompt}
 
 Custom Metrics (Use these exact SQL expressions when the user asks for these concepts):
 ${metricsPrompt}
+
+${dateInstruction}
 
 Rules:
 - Return ONLY a SELECT statement.
@@ -55,16 +64,14 @@ Rules:
       return JSON.parse(content) as NLSQLResult;
 
     } catch (err: any) {
-      // If it's a 503 (Unavailable) or 429 (Rate Limit), retry
       if (err.status === 503 || err.status === 429) {
         retries--;
         if (retries === 0) {
           throw new AppError("internal_error", "The AI is currently overloaded. Please try again in a minute.", 503);
         }
-        // Wait 5 seconds before trying again
         await new Promise(r => setTimeout(r, 5000));
       } else {
-        throw err; // If it's a different error (like 404), fail immediately
+        throw err; 
       }
     }
   }
