@@ -7,11 +7,19 @@ const redis = new Redis({
 });
 
 /**
- * Generates a unique hash for a query based on the tenant and question.
+ * Generates a unique hash for a query.
+ * S4 FIX: Includes projectId, role, tenantId, and a hash of the semantic layer 
+ * to prevent cross-tenant/cross-project cache leaks.
  */
-export function generateCacheKey(tenantId: string, question: string): string {
-  const hash = crypto.createHash("sha256").update(question.toLowerCase().trim()).digest("hex");
-  return `vizzly:query:${tenantId}:${hash}`;
+export function generateCacheKey(
+  projectId: string, 
+  tenantId: string, 
+  role: string,
+  question: string,
+  semanticLayerHash: string
+): string {
+  const queryHash = crypto.createHash("sha256").update(question.toLowerCase().trim()).digest("hex");
+  return `vizzly:query:${projectId}:${tenantId}:${role}:${semanticLayerHash}:${queryHash}`;
 }
 
 /**

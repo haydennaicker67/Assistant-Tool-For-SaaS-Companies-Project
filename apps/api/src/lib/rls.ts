@@ -1,38 +1,43 @@
 import postgres from "postgres";
+import { AppError } from "../errors";
 
-/**
- * Executes a query against the CUSTOMER'S database with RLS enforced.
- * 
- * We use a transaction (`sql.begin`) to ensure `SET LOCAL` only applies to 
- * this specific query. Once the transaction ends (commit or rollback), the 
- * tenant_id setting is wiped, preventing leaks across pooled connections.
- */
 export async function queryWithRLS(
   connectionString: string,
   tenantId: string,
   queryFn: (tx: postgres.TransactionSql) => Promise<any>
 ) {
-  // max: 1 ensures we don't exhaust the customer's connection limit during bursts
-  // ssl: "require" is needed for Supabase connections
+  // S3 FIX: We enforce max connections, disable prepare (to avoid injection), and require SSL
   const sql = postgres(connectionString, { max: 1, prepare: false, ssl: "require" });
 
   try {
     const result = await sql.begin(async (tx) => {
-      // 1. Switch to an unprivileged role so RLS is strictly enforced.
-      // The 'authenticated' role is built into Supabase and does not bypass RLS.
+      // S3 FIX: Ensure the session is read-only
+      await tx`SET TRANSACTION READ ONLY`;
+      
+      // S3 FIX: Kill queries that take longer than 5 seconds
+      await tx`SET LOCAL statement_timeout = '5s'`;
+      
+      // S3 FIX: Switch to an unprivileged role so RLS is strictly enforced
       await tx`SET LOCAL ROLE authenticated`;
       
-      // 2. Inject the tenant ID into the Postgres session
-      // We use set_config() instead of SET LOCAL to allow parameter binding (prevents SQL injection)
+      // Inject the tenant ID securely
       await tx`SELECT set_config('app.tenant_id', ${tenantId}, true)`;
 
-      // 3. Run the actual query using the transaction object (tx)
+      // Run the query
       return await queryFn(tx);
     });
 
     return result;
+  } catch (err: any) {
+    // If the query fails because of read-only or timeout, return a friendly error
+    if (err.code === "25006") {
+      throw new AppError("invalid_sql", "Write operations are strictly forbidden.", 400);
+    }
+    if (err.code === "57014") {
+      throw new AppError("invalid_sql", "The query took too long to execute.", 400);
+    }
+    throw err;
   } finally {
-    // 4. Always close the connection
     await sql.end();
   }
 }

@@ -15,6 +15,7 @@ import { checkUsageLimit } from "../lib/limits";
 import { generateCacheKey, getCachedQuery, setCachedQuery } from "../lib/cache";
 import { logAudit } from "../lib/audit";
 import { decrypt } from "../lib/crypto";
+import crypto from "node:crypto";
 
 export const queryRoutes = new Hono<AuthEnv>();
 
@@ -44,8 +45,25 @@ queryRoutes.post("/nl", authMiddleware, async (c) => {
 
   const { question, dateRange } = parsed.data;
 
-  // Include dateRange in the cache key so we don't serve cached data for a different date range
-  const cacheKey = generateCacheKey(claims.tenant_id, question + (dateRange ? `:${dateRange.from}:${dateRange.to}` : ""));
+  // 1. Fetch project & layer FIRST so we can build the secure cache key
+  const [project] = await db.select().from(projects).where(eq(projects.id, projectId));
+  if (!project) throw new AppError("invalid_request", "Project not found", 404);
+
+  const [layerRecord] = await db.select().from(semanticLayers).where(eq(semanticLayers.projectId, projectId));
+  if (!layerRecord) throw new AppError("invalid_request", "Semantic layer not found", 404);
+
+  // 2. S4 FIX: Generate a hash of the semantic layer to invalidate cache if it changes
+  const layerHash = crypto.createHash("sha256").update(JSON.stringify(layerRecord.layer)).digest("hex");
+  
+  // 3. S4 FIX: Include projectId, role, and layerHash in the cache key
+  const cacheKey = generateCacheKey(
+    projectId, 
+    claims.tenant_id, 
+    claims.role, 
+    question + (dateRange ? `:${dateRange.from}:${dateRange.to}` : ""), 
+    layerHash
+  );
+  
   const cachedResult = await getCachedQuery(cacheKey);
   
   if (cachedResult) {
@@ -56,13 +74,7 @@ queryRoutes.post("/nl", authMiddleware, async (c) => {
     });
   }
 
-  const [project] = await db.select().from(projects).where(eq(projects.id, projectId));
-  if (!project) throw new AppError("invalid_request", "Project not found", 404);
-
   const connectionString = decrypt(project.dbConnectionStringEncrypted);
-
-  const [layerRecord] = await db.select().from(semanticLayers).where(eq(semanticLayers.projectId, projectId));
-  if (!layerRecord) throw new AppError("invalid_request", "Semantic layer not found", 404);
 
   logger.info({ question, dateRange }, "Generating SQL");
   const { sql, explanation } = await generateSQL(question, layerRecord.layer, dateRange);
