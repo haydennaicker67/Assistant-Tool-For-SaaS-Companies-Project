@@ -4,6 +4,7 @@ import { useEffect, useState, Suspense } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { fetchApi } from '@/utils/api'
+import YAML from 'yaml' // NEW IMPORT
 
 function SemanticLayerContent() {
   const params = useParams()
@@ -50,6 +51,20 @@ function SemanticLayerContent() {
     }
   }
 
+  // NEW: YAML Export
+  const downloadYAML = () => {
+    if (!layer) return;
+    const yamlString = YAML.stringify(layer);
+    const blob = new Blob([yamlString], { type: 'text/yaml' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `semantic_layer_${projectId}.yaml`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const addMetric = () => {
     const newLayer = { ...layer }
     if (!newLayer.metrics) newLayer.metrics = []
@@ -75,6 +90,12 @@ function SemanticLayerContent() {
         </div>
         
         <div className="flex gap-4">
+          <button 
+            onClick={downloadYAML}
+            className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md font-medium hover:bg-gray-200"
+          >
+            Export YAML
+          </button>
           <Link 
             href={`/projects/${projectId}/versions`}
             className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md font-medium hover:bg-gray-200"

@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { db } from "../lib/db";
-import { semanticLayerVersions } from "../db/schema";
+import { semanticLayerVersions, semanticLayers } from "../db/schema";
 import { eq, desc } from "drizzle-orm";
 import type { AppEnv } from "../types";
 
@@ -31,4 +31,23 @@ versionRoutes.get("/:projectId/:versionId", async (c) => {
   if (!version) return c.json({ error: "Version not found" }, 404);
 
   return c.json({ layer: version.layer });
+});
+
+// NEW: Rollback Route
+versionRoutes.post("/:projectId/:versionId/rollback", async (c) => {
+  const projectId = c.req.param("projectId");
+  const versionId = c.req.param("versionId");
+
+  const [version] = await db.select()
+    .from(semanticLayerVersions)
+    .where(eq(semanticLayerVersions.id, versionId));
+
+  if (!version) return c.json({ error: "Version not found" }, 404);
+
+  // Update the main semantic layer with the historical version
+  await db.update(semanticLayers)
+    .set({ layer: version.layer, updatedAt: new Date() })
+    .where(eq(semanticLayers.projectId, projectId));
+
+  return c.json({ ok: true });
 });
