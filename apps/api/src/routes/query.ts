@@ -94,11 +94,12 @@ queryRoutes.post("/nl", authMiddleware, async (c) => {
     rows = await queryWithRLS(connectionString, claims.tenant_id, async (tx) => {
       return await tx.unsafe(validatedSql); 
     });
-  } catch (err: any) {
+   } catch (err: any) {
     logger.error({ err, sql }, "Query execution failed");
-    throw new AppError("invalid_sql", "I couldn't understand that question—try rephrasing.", 400, err.message);
+    // S15 FIX: Do not leak the raw Postgres error to the client
+    throw new AppError("invalid_sql", "I couldn't understand that question—try rephrasing.", 400);
   }
-  
+
   const queryMs = Date.now() - start;
 
   const columns = rows.length > 0 
@@ -126,13 +127,14 @@ queryRoutes.post("/nl", authMiddleware, async (c) => {
     }
   }
 
-  const chartSpec: ChartSpec = {
+    const chartSpec: ChartSpec = {
     chartType: chartType,
     columns,
     rows,
     meta: {
       explanation,
-      sql,
+      // S15 FIX: Only return the SQL if the user is an admin
+      sql: claims.role === "admin" ? sql : undefined,
       queryMs,
       totalMs: Date.now() - start,
       cached: false,
@@ -140,7 +142,7 @@ queryRoutes.post("/nl", authMiddleware, async (c) => {
       truncated: false,
     }
   };
-
+  
   logAudit(projectId, claims.user_id, "query", { question, sql: validatedSql }).catch(console.error);
   await setCachedQuery(cacheKey, chartSpec, 60);
 

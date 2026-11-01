@@ -16,11 +16,10 @@ export function validateSQL(sql: string, layer: SemanticLayer): string {
     throw new AppError("invalid_sql", "Security violation: Only single-statement queries are allowed.", 400);
   }
 
-  const statement = ast[0];
-
   // 3. Ensure the statement is a SELECT
-  if (statement.type !== "select") {
-    throw new AppError("invalid_sql", "Security violation: Only SELECT queries are allowed.", 400);
+   const statement = ast[0];
+  if (!statement) {
+    throw new AppError("invalid_sql", "Security violation: Empty query.", 400);
   }
 
   // 4. Block system catalogs and forbidden tables

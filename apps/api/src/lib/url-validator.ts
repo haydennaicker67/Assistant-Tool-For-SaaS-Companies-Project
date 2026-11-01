@@ -37,7 +37,8 @@ export function validateDatabaseUrl(connectionString: string): void {
       }
     } else if (Address6.isValid(cleanHostname)) {
       const address = new Address6(cleanHostname);
-      if (address.isLinkLocal() || address.isLoopback() || address.isUniqueLocal()) {
+      const isUniqueLocal = cleanHostname.startsWith('fc') || cleanHostname.startsWith('fd');
+      if (address.isLinkLocal() || address.isLoopback() || isUniqueLocal) {
         throw new Error('Connections to private IP ranges are forbidden.');
       }
     }

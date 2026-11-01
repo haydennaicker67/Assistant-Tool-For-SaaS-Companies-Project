@@ -184,6 +184,9 @@ importers:
       '@hono/node-server':
         specifier: ^1.13.0
         version: 1.19.17(hono@4.13.14)
+      '@supabase/supabase-js':
+        specifier: ^2.118.0
+        version: 2.118.0
       '@upstash/ratelimit':
         specifier: ^2.2.0
         version: 2.2.0(@upstash/redis@1.40.0)

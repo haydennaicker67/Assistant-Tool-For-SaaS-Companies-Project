@@ -161,19 +161,38 @@ export function Chart({ data }: { data: ChartSpec }) {
   // State to allow the user to toggle chart type dynamically
   const [activeChartType, setActiveChartType] = useState<"table" | "bar" | "line" | "pie">(data.chartType as any || "table");
 
-  const downloadCSV = () => {
+      const downloadCSV = () => {
     if (!data || data.rows.length === 0) return;
+
     const headers = data.columns.map(c => c.label).join(",");
+
     const csvRows = data.rows.map(row => {
       return data.columns.map(col => {
-        let val = row[col.name];
+        const val = row[col.name];
+        
+        // S23 FIX: Neutralize CSV injection and handle quoting
         if (typeof val === "string") {
-          const strVal = val.replace(/"/g, '""');
-          return strVal.includes(",") ? `"${strVal}"` : strVal;
+          let strVal = val;
+          
+          // Prefix with a single quote if it starts with a dangerous character
+          if (/^[=+\-@]/.test(strVal)) {
+            strVal = `'${strVal}`;
+          }
+          
+          // Escape internal quotes
+          strVal = strVal.replace(/"/g, '""');
+          
+          // Wrap in quotes if it contains a comma, newline, or quote
+          if (/[",\n]/.test(strVal)) {
+            return `"${strVal}"`;
+          }
+          return strVal;
         }
+        
         return val ?? "";
       }).join(",");
     });
+
     const csvContent = [headers, ...csvRows].join("\n");
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
@@ -184,7 +203,7 @@ export function Chart({ data }: { data: ChartSpec }) {
     link.click();
     document.body.removeChild(link);
   };
-
+  
   return (
     <div className="vizzly-chart" style={{ marginTop: '1rem' }}>
       

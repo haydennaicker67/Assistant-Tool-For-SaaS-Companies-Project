@@ -60,7 +60,8 @@ export async function verifyEmbedToken(
 
   const { payload } = await jwtVerify(token, key, {
     issuer: ISSUER,
-    audience: options.projectId
+    audience: options.projectId,
+    algorithms: ["HS256"] // S19 FIX: Pin the algorithm to prevent alg confusion attacks
   });
 
   const { tenant_id, user_id, role } = payload as JWTPayload & EmbedClaims;

@@ -6,7 +6,7 @@ import { eq } from "drizzle-orm";
 import { AppError } from "../errors";
 import type { AppEnv } from "../types";
 import { z } from "zod";
-import crypto from "node:crypto";
+import crypto from "node:crypto"; // S17 FIX
 
 const paystack = new PaystackClient({
   apiKey: process.env.PAYSTACK_SECRET_KEY!,
@@ -29,23 +29,22 @@ billingRoutes.post("/checkout", async (c) => {
   const [project] = await db.select().from(projects).where(eq(projects.id, projectId));
   if (!project) throw new AppError("invalid_request", "Project not found", 404);
 
-  // Amount in the lowest denomination (Cents for ZAR)
   const amount = tier === "growth" ? 49900 : 149900; 
 
   try {
     const tx = await paystack.transactions.initialize({
-      email: "developer@vizzly.co.za", // In a real app, use the user's email
+      email: "developer@vizzly.co.za", 
       amount: amount,
       currency: "ZAR",
-      callback_url: `http://localhost:3000/?success=true`,
+      callback_url: `http://localhost:3000/dashboard?success=true`,
       metadata: {
         projectId: project.id,
-        tier: tier
+        tier: tier,
+        expectedAmount: amount // S17 FIX: Track expected amount
       }
     });
 
-    // Return the Paystack checkout URL to the frontend
-        if (!tx.data || !tx.data.authorization_url) {
+    if (!tx.data || !tx.data.authorization_url) {
       throw new AppError("internal_error", "Failed to get checkout URL from Paystack", 500);
     }
 
@@ -59,30 +58,38 @@ billingRoutes.post("/checkout", async (c) => {
 
 billingRoutes.post("/webhook", async (c) => {
   const signature = c.req.header("x-paystack-signature");
-  const body = await c.req.text(); // Need raw body for signature verification
+  const body = await c.req.text(); 
 
   if (!signature) {
     return c.json({ error: "No signature" }, 400);
   }
 
-  // Verify signature (You should use your Paystack Secret Key)
+  // S17 FIX: Verify signature using timingSafeEqual
   const hash = crypto
     .createHmac("sha512", process.env.PAYSTACK_SECRET_KEY!)
     .update(body)
     .digest("hex");
 
-  if (hash !== signature) {
+  const bufferA = Buffer.from(hash);
+  const bufferB = Buffer.from(signature);
+
+  if (bufferA.length !== bufferB.length || !crypto.timingSafeEqual(bufferA, bufferB)) {
+    console.log("Webhook signature mismatch!");
     return c.json({ error: "Invalid signature" }, 401);
   }
 
   const event = JSON.parse(body);
 
-  // Handle successful charge
   if (event.event === "charge.success") {
     const metadata = event.data.metadata;
-    const projectId = metadata.projectId;
-    const tier = metadata.tier;
+    const { projectId, tier, expectedAmount } = metadata;
 
+    // S17 FIX: Verify the amount and currency actually match the tier
+    if (event.data.amount !== expectedAmount || event.data.currency !== "ZAR") {
+      console.error("Webhook amount/currency mismatch!");
+      return c.json({ error: "Amount mismatch" }, 400);
+    }
+    
     if (projectId && tier) {
       await db.update(projects)
         .set({ planTier: tier })

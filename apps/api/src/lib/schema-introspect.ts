@@ -13,6 +13,7 @@ export async function introspectSchema(connectionString: string): Promise<RawSch
   const sql = postgres(connectionString, { max: 1, prepare: false, ssl: "require" });
 
   try {
+    // Q1 FIX: Use table_constraints to guarantee we only pick up FOREIGN KEYs
     const result = await sql<RawSchema[]>`
       SELECT 
         c.table_name as "tableName",
@@ -26,11 +27,15 @@ export async function introspectSchema(connectionString: string): Promise<RawSch
         ON c.table_name = kcu.table_name 
         AND c.column_name = kcu.column_name
         AND c.table_schema = kcu.table_schema
+      LEFT JOIN information_schema.table_constraints tc
+        ON kcu.constraint_name = tc.constraint_name
+        AND kcu.table_schema = tc.table_schema
+        AND tc.constraint_type = 'FOREIGN KEY' -- Q1 FIX: Strict FK filter
       LEFT JOIN information_schema.constraint_column_usage ccu
         ON kcu.constraint_name = ccu.constraint_name
         AND kcu.table_schema = ccu.table_schema
       WHERE c.table_schema = 'public'
-        AND c.table_name NOT IN ('leak_test_orders', 'schema_migrations', 'drizzle_migrations')
+        AND c.table_name NOT IN ('leak_test_relations', 'leak_test_orders', 'schema_migrations', 'drizzle_migrations')
       ORDER BY c.table_name, c.ordinal_position
     `;
     return result;
