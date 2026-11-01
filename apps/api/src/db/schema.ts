@@ -13,13 +13,15 @@ import type { SemanticLayer } from "@vizzly-sa/shared";
 export const projects = pgTable("projects", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
-  // UPDATED: Renamed to reflect encryption at rest
   dbConnectionStringEncrypted: text("db_connection_string_encrypted").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   
+  // NEW: Ownership (S2)
+  userId: uuid("user_id").notNull(), // References auth.users in Supabase
+  
   // Billing columns for Paystack
   billingCustomerId: text("billing_customer_id"),
-  planTier: text("plan_tier").default("free").notNull(), // 'free' | 'growth' | 'scale'
+  planTier: text("plan_tier").default("free").notNull(), 
 });
 
 // 2. Tenants (End-customers of the SaaS app)

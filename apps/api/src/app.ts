@@ -13,8 +13,8 @@ import { queryRoutes } from "./routes/query";
 import { billingRoutes } from "./routes/billing";
 import { auditRoutes } from "./routes/audit";
 import { versionRoutes } from "./routes/versions";
-import { analyticsRoutes } from "./routes/analytics"; // NEW
-import { controlPlaneAuth } from "./middleware/control-plane"; // NEW
+import { analyticsRoutes } from "./routes/analytics";
+import { requireUser } from "./middleware/require-user"; // NEW
 
 export function buildApp(env: Env) {
   const logger = createLogger(env);
@@ -28,12 +28,13 @@ export function buildApp(env: Env) {
     "*",
     cors({
       origin: (origin) => {
-        if (!origin || origin.includes("localhost") || origin.includes(process.env.WEB_BASE_URL ?? "vizzly")) {
+        // S13 FIX: Stricter CORS check
+        if (!origin || origin.includes("localhost") || origin.includes("vizzly.co.za")) {
           return origin;
         }
         return "http://localhost:3000";
       },
-      allowHeaders: ["Content-Type", "Authorization", "x-project-id", "x-api-key"], // ADDED x-api-key
+      allowHeaders: ["Content-Type", "Authorization", "x-project-id"], // Removed x-api-key
       allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
       exposeHeaders: ["x-request-id"]
     })
@@ -44,20 +45,20 @@ export function buildApp(env: Env) {
   // Public routes
   app.route("/", healthRoutes);
   
-  // Protected Control Plane routes (require API Key)
-  app.use("/v1/projects/*", controlPlaneAuth);
-  app.use("/v1/versions/*", controlPlaneAuth);
-  app.use("/v1/audit/*", controlPlaneAuth);
-  app.use("/v1/analytics/*", controlPlaneAuth);
-  app.use("/v1/billing/*", controlPlaneAuth);
+  // Protected Control Plane routes (require valid Supabase session)
+  app.use("/v1/projects/*", requireUser);
+  app.use("/v1/versions/*", requireUser);
+  app.use("/v1/audit/*", requireUser);
+  app.use("/v1/analytics/*", requireUser);
+  app.use("/v1/billing/*", requireUser);
 
   app.route("/v1/projects", projectRoutes);
   app.route("/v1/versions", versionRoutes);
   app.route("/v1/audit", auditRoutes);
-  app.route("/v1/analytics", analyticsRoutes); // NEW
+  app.route("/v1/analytics", analyticsRoutes);
   app.route("/v1/billing", billingRoutes);
   
-  // Note: /v1/query is protected by authMiddleware (JWT), not API Key
+  // Note: /v1/query is protected by authMiddleware (JWT), not requireUser
   app.route("/v1/query", queryRoutes);
 
   return app;

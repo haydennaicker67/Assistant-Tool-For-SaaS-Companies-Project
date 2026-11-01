@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { db } from '@vizzly-sa/api/src/lib/db'
 import { projects } from '@vizzly-sa/api/src/db/schema'
-import { desc } from 'drizzle-orm'
+import { desc, eq } from 'drizzle-orm' // Import eq
 import { UpgradeButton } from '@/app/components/UpgradeButton'
 
 export async function ProjectsList() {
@@ -12,7 +12,11 @@ export async function ProjectsList() {
 
   if (!user) redirect('/login')
 
-  const allProjects = await db.select().from(projects).orderBy(desc(projects.createdAt))
+  // S2 FIX: Only fetch projects owned by this user
+  const allProjects = await db.select()
+    .from(projects)
+    .where(eq(projects.userId, user.id))
+    .orderBy(desc(projects.createdAt))
 
   return (
     <div>
@@ -58,7 +62,6 @@ export async function ProjectsList() {
               <div className="p-6 flex-1">
                 <div className="flex justify-between items-start mb-4">
                   
-                  {/* ADDED LINK TO OVERVIEW */}
                   <Link href={`/projects/${project.id}/overview`}>
                     <h2 className="text-xl font-bold text-gray-900 truncate hover:text-blue-600 transition-colors">{project.name}</h2>
                   </Link>

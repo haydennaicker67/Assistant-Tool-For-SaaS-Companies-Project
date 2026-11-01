@@ -5,13 +5,13 @@ import { embedSecrets, projects, semanticLayers, semanticLayerVersions } from ".
 import { introspectSchema } from "../lib/schema-introspect";
 import { generateSemanticLayer } from "../lib/semantic-gen";
 import { AppError } from "../errors";
-import type { AppEnv } from "../types";
+import type { AuthUserEnv } from "../middleware/require-user"; // NEW
 import { eq, sql } from "drizzle-orm"; 
 import { randomBytes } from "node:crypto";
 import { logAudit } from "../lib/audit"; 
-import { encrypt, decrypt } from "../lib/crypto"; // NEW IMPORT
+import { encrypt, decrypt } from "../lib/crypto";
 
-export const projectRoutes = new Hono<AppEnv>();
+export const projectRoutes = new Hono<AuthUserEnv>(); // NEW type
 
 const connectSchema = z.object({
   name: z.string().min(1),
@@ -20,6 +20,7 @@ const connectSchema = z.object({
 
 projectRoutes.post("/connect-db", async (c) => {
   const logger = c.get("logger");
+  const userId = c.get("userId"); // S1 FIX: Get the real user
   const body = await c.req.json();
   
   const parsed = connectSchema.safeParse(body);
@@ -36,12 +37,13 @@ projectRoutes.post("/connect-db", async (c) => {
       throw new AppError("invalid_request", "No tables found in the public schema of this database.", 400);
     }
 
-    logger.info("Generating semantic layer via OpenAI...");
+    logger.info("Generating semantic layer...");
     const semanticLayer = await generateSemanticLayer(rawSchema);
 
     const [newProject] = await db.insert(projects).values({
       name,
-      dbConnectionStringEncrypted: encrypt(dbConnectionString), // ENCRYPT HERE
+      dbConnectionStringEncrypted: encrypt(dbConnectionString),
+      userId: userId, // S2 FIX: Save the owner
     }).returning();
 
     if (!newProject) {
@@ -67,13 +69,17 @@ projectRoutes.post("/connect-db", async (c) => {
 });
 
 projectRoutes.get("/:id/semantic-layer", async (c) => {
+  const userId = c.get("userId");
   const projectId = c.req.param("id");
   
-  const [layerRecord] = await db.select().from(semanticLayers).where(eq(semanticLayers.projectId, projectId));
-  
-  if (!layerRecord) {
-    throw new AppError("invalid_request", "Semantic layer not found", 404);
+  // S2 FIX: Verify ownership
+  const [project] = await db.select().from(projects).where(eq(projects.id, projectId));
+  if (!project || project.userId !== userId) {
+    throw new AppError("invalid_request", "Project not found or unauthorized", 404);
   }
+
+  const [layerRecord] = await db.select().from(semanticLayers).where(eq(semanticLayers.projectId, projectId));
+  if (!layerRecord) throw new AppError("invalid_request", "Semantic layer not found", 404);
 
   const [secretRecord] = await db.select().from(embedSecrets).where(eq(embedSecrets.projectId, projectId));
 
@@ -85,8 +91,15 @@ projectRoutes.get("/:id/semantic-layer", async (c) => {
 });
 
 projectRoutes.post("/:id/semantic-layer/publish", async (c) => {
+  const userId = c.get("userId");
   const projectId = c.req.param("id");
   const body = await c.req.json().catch(() => ({})); 
+
+  // S2 FIX: Verify ownership
+  const [project] = await db.select().from(projects).where(eq(projects.id, projectId));
+  if (!project || project.userId !== userId) {
+    throw new AppError("invalid_request", "Project not found or unauthorized", 404);
+  }
 
   let updatedLayer;
   if (body.layer) {
@@ -124,7 +137,8 @@ projectRoutes.post("/:id/semantic-layer/publish", async (c) => {
     await db.insert(embedSecrets).values({ projectId, secret });
   }
 
-  logAudit(projectId, "developer", "semantic_update", { 
+  // S2 FIX: Audit log with real user
+  logAudit(projectId, userId, "semantic_update", { 
     message: `Published semantic layer version ${nextVersionNumber}` 
   }).catch(console.error);
 
