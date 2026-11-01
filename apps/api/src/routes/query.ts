@@ -14,7 +14,7 @@ import { trackUsage } from "../lib/usage";
 import { checkUsageLimit } from "../lib/limits";
 import { generateCacheKey, getCachedQuery, setCachedQuery } from "../lib/cache";
 import { logAudit } from "../lib/audit";
-import { decrypt } from "../lib/crypto"; // NEW IMPORT
+import { decrypt } from "../lib/crypto";
 
 export const queryRoutes = new Hono<AuthEnv>();
 
@@ -54,7 +54,6 @@ queryRoutes.post("/nl", authMiddleware, async (c) => {
   const [project] = await db.select().from(projects).where(eq(projects.id, projectId));
   if (!project) throw new AppError("invalid_request", "Project not found", 404);
 
-  // DECRYPT HERE
   const connectionString = decrypt(project.dbConnectionStringEncrypted);
 
   const [layerRecord] = await db.select().from(semanticLayers).where(eq(semanticLayers.projectId, projectId));
@@ -89,9 +88,23 @@ queryRoutes.post("/nl", authMiddleware, async (c) => {
       }))
     : [];
 
-  let chartType: "table" | "bar" = "table";
-  if (sql.toLowerCase().includes("group by") && columns.length >= 2) {
-    chartType = "bar";
+  // SMART AUTO-DETECTION
+  let chartType: "table" | "bar" | "line" | "pie" = "table";
+  const lowerSql = sql.toLowerCase();
+  
+  if (lowerSql.includes("group by") && columns.length >= 2) {
+    chartType = "bar"; // Default grouping to bar
+    
+    // If it looks like a time series (has 'date', 'month', 'year'), use line chart
+    if (
+      lowerSql.includes("date") || 
+      lowerSql.includes("month") || 
+      lowerSql.includes("year") || 
+      lowerSql.includes("created_at") ||
+      lowerSql.includes("timestamp")
+    ) {
+      chartType = "line";
+    }
   }
 
   const chartSpec: ChartSpec = {

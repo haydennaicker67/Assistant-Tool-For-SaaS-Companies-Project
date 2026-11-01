@@ -6,10 +6,12 @@ import { VizzlyProvider, NLQueryInput } from '@vizzly-sa/sdk'
 export function TestDashboardClient({ projectId }: { projectId: string }) {
   const [embedToken, setEmbedToken] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  
+  // useRef to prevent the infinite loop in React 18/19 strict mode
   const fetched = useRef(false)
 
   useEffect(() => {
-    // Prevent double-fetching in React 18/19 Strict Mode
+    // If we already fetched the token, do nothing
     if (fetched.current) return
     fetched.current = true
 
@@ -26,7 +28,7 @@ export function TestDashboardClient({ projectId }: { projectId: string }) {
     fetchToken()
   }, [projectId])
 
-  if (error) return <div className="text-red-500">Error: {error}</div>
+  if (error) return <div className="text-red-500 p-4">Error: {error}</div>
   if (!embedToken) return <div className="text-gray-500 p-4">Generating secure session...</div>
 
   return (
