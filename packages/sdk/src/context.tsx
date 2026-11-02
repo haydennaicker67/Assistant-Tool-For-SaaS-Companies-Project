@@ -4,6 +4,7 @@ interface VizzlyConfig {
   embedToken: string;
   controlPlaneUrl: string;
   projectId: string;
+  onTokenExpired?: () => Promise<string>; // NEW
 }
 
 interface VizzlyContextType extends VizzlyConfig {

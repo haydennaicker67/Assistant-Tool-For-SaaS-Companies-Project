@@ -3,7 +3,7 @@ import type { ChartSpec } from "@vizzly-sa/shared";
 import { useVizzlyConfig } from "../context";
 
 export function useVizzlyQuery() {
-  const { embedToken, controlPlaneUrl, projectId } = useVizzlyConfig();
+  const { embedToken, controlPlaneUrl, projectId, onTokenExpired } = useVizzlyConfig();
   const [data, setData] = useState<ChartSpec | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -12,22 +12,30 @@ export function useVizzlyQuery() {
     setLoading(true);
     setError(null);
 
-    try {
-      const res = await fetch(`${controlPlaneUrl}/v1/query/nl`, {
+    const makeRequest = async (token: string) => {
+      return fetch(`${controlPlaneUrl}/v1/query/nl`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${embedToken}`,
+          "Authorization": `Bearer ${token}`,
           "x-project-id": projectId,
         },
         body: JSON.stringify({ question, projectId, dateRange }),
       });
+    };
+
+    try {
+      let res = await makeRequest(embedToken);
+
+      // S19 FIX: If unauthorized (token expired), try to refresh
+      if (res.status === 401 && onTokenExpired) {
+        const newToken = await onTokenExpired();
+        res = await makeRequest(newToken);
+      }
 
       if (!res.ok) {
         const errBody = await res.json();
-        if (errBody.code === "limit_exceeded") {
-          throw new Error("LIMIT_EXCEEDED");
-        }
+        if (errBody.code === "limit_exceeded") throw new Error("LIMIT_EXCEEDED");
         throw new Error(errBody.message || "Query failed");
       }
 
@@ -39,7 +47,7 @@ export function useVizzlyQuery() {
     } finally {
       setLoading(false);
     }
-  }, [embedToken, controlPlaneUrl, projectId]);
+  }, [embedToken, controlPlaneUrl, projectId, onTokenExpired]);
 
   return { data, loading, error, executeNLQuery };
 }

@@ -11,6 +11,7 @@ import { logAudit } from "../lib/audit";
 import { encrypt, decrypt } from "../lib/crypto";
 import { validateDatabaseUrl } from "../lib/url-validator";
 import { generateKeyPairSync } from "node:crypto";
+import { validateLayer } from "../lib/validate-layer";
 
 export const projectRoutes = new Hono<AuthUserEnv>();
 
@@ -118,6 +119,12 @@ projectRoutes.post("/:id/semantic-layer/publish", async (c) => {
   const [project] = await db.select().from(projects).where(eq(projects.id, projectId));
   if (!project || project.userId !== userId) {
     throw new AppError("invalid_request", "Project not found or unauthorized", 404);
+  }
+
+  // S18 FIX: Validate the layer before saving
+  let validatedLayer = null;
+  if (body.layer) {
+    validatedLayer = validateLayer(body.layer);
   }
 
   let updatedLayer;
