@@ -80,10 +80,10 @@ queryRoutes.post("/nl", authMiddleware, async (c) => {
 
   const connectionString = decrypt(project.dbConnectionStringEncrypted);
 
-  logger.info({ question, dateRange }, "Generating SQL");
+    logger.info({ questionLength: question.length }, "Generating SQL");
   const { sql, explanation } = await generateSQL(question, layerRecord.layer, dateRange);
 
-  logger.info({ sql }, "Validating SQL");
+    logger.info({ hasSql: !!sql }, "Validating SQL");
   const validatedSql = validateSQL(sql, layerRecord.layer);
 
   logger.info("Executing query");
@@ -142,7 +142,7 @@ queryRoutes.post("/nl", authMiddleware, async (c) => {
       truncated: false,
     }
   };
-  
+
   logAudit(projectId, claims.user_id, "query", { question, sql: validatedSql }).catch(console.error);
   await setCachedQuery(cacheKey, chartSpec, 60);
 
