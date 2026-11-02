@@ -8,7 +8,7 @@ import { AppError } from "../errors";
 import type { AuthUserEnv } from "../middleware/require-user";
 import { eq, sql } from "drizzle-orm"; 
 import { logAudit } from "../lib/audit"; 
-import { encrypt, decrypt } from "../lib/crypto";
+import { encrypt } from "../lib/crypto";
 import { validateDatabaseUrl } from "../lib/url-validator";
 import { generateKeyPairSync } from "node:crypto";
 import { validateLayer } from "../lib/validate-layer";
@@ -61,20 +61,23 @@ projectRoutes.post("/connect-db", async (c) => {
     logger.info("Generating semantic layer...");
     const semanticLayer = await generateSemanticLayer(rawSchema);
 
-    const [newProject] = await db.insert(projects).values({
-      name,
-      dbConnectionStringEncrypted: encrypt(dbConnectionString),
-      userId: userId, 
-    }).returning();
+    // Q6 FIX: Wrap both inserts in a transaction
+    const newProject = await db.transaction(async (tx) => {
+      const [createdProject] = await tx.insert(projects).values({
+        name,
+        dbConnectionStringEncrypted: encrypt(dbConnectionString),
+        userId: userId, 
+      }).returning();
 
-    if (!newProject) {
-      throw new AppError("internal_error", "Failed to create project in control plane", 500);
-    }
+      if (!createdProject) throw new Error("Failed to create project");
 
-    await db.insert(semanticLayers).values({
-      projectId: newProject.id,
-      layer: semanticLayer,
-      published: false,
+      await tx.insert(semanticLayers).values({
+        projectId: createdProject.id,
+        layer: semanticLayer,
+        published: false,
+      });
+
+      return createdProject;
     });
 
     return c.json({ ok: true, projectId: newProject.id, semanticLayer });
@@ -101,13 +104,12 @@ projectRoutes.get("/:id/semantic-layer", async (c) => {
   const [layerRecord] = await db.select().from(semanticLayers).where(eq(semanticLayers.projectId, projectId));
   if (!layerRecord) throw new AppError("invalid_request", "Semantic layer not found", 404);
 
-  // S7 FIX: We no longer return the secret here. Keys are only returned once on publish.
   const [keyRecord] = await db.select().from(embedSecrets).where(eq(embedSecrets.projectId, projectId));
 
   return c.json({
     layer: layerRecord.layer,
     published: layerRecord.published,
-    hasKeys: !!keyRecord, // Just tell the UI if keys exist
+    hasKeys: !!keyRecord,
   });
 });
 
@@ -128,9 +130,9 @@ projectRoutes.post("/:id/semantic-layer/publish", async (c) => {
   }
 
   let updatedLayer;
-  if (body.layer) {
+  if (validatedLayer) {
     const [result] = await db.update(semanticLayers)
-      .set({ layer: body.layer, published: true, updatedAt: new Date() })
+      .set({ layer: validatedLayer, published: true, updatedAt: new Date() })
       .where(eq(semanticLayers.projectId, projectId))
       .returning();
     if (!result) throw new AppError("internal_error", "Failed to update semantic layer", 500);
@@ -172,7 +174,6 @@ projectRoutes.post("/:id/semantic-layer/publish", async (c) => {
       publicKey: publicKey 
     });
 
-    // For internal testing only, store the encrypted private key
     await db.update(projects)
       .set({ embedPrivateKeyEncrypted: encrypt(privateKey) })
       .where(eq(projects.id, projectId));

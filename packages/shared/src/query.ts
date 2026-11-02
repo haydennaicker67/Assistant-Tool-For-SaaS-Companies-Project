@@ -63,23 +63,16 @@ export interface ChartSpec {
   columns: ColumnSpec[];
   rows: Array<Record<string, unknown>>;
   meta: {
-    /** For NL requests: the explanation GPT-4o gave for the SQL it wrote */
     explanation?: string;
-    /** The SQL that was actually executed (Postgres dialect) */
     sql?: string;
-    /** Milliseconds the query spent in Postgres */
     queryMs?: number;
-    /** Total server-side latency, including RLS transaction setup */
     totalMs?: number;
-    /** Whether the response was served from the edge cache (Step 13) */
+    aiMs?: number; // NEW: AI generation time
     cached: boolean;
-    /** Number of rows returned after LIMIT */
     rowCount: number;
-    /** Whether the server truncated the result to its max row limit */
     truncated: boolean;
   };
 }
-
 export interface ColumnSpec {
   /** Column key as it appears in ChartSpec.rows */
   name: string;
