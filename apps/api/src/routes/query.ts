@@ -97,7 +97,7 @@ queryRoutes.post("/nl", authMiddleware, async (c) => {
   let rows: any[];
   
   try {
-    rows = await queryWithRLS(connectionString, claims.tenant_id, async (tx) => {
+        rows = await queryWithRLS(projectId, connectionString, claims.tenant_id, async (tx) => {
       // Q2 FIX: Enforce a hard cap server-side
       const safeSql = `SELECT * FROM (${validatedSql.replace(/;+$/, "")}) AS _vizzly_inner LIMIT 1000`;
       return await tx.unsafe(safeSql); 

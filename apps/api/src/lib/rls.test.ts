@@ -17,6 +17,9 @@ if (!DB_URL) {
   process.exit(1);
 }
 
+// R1 FIX: Use a fixed test project ID so the pool manager reuses the connection
+const TEST_PROJECT_ID = "test-project-rls-leak";
+
 describe("RLS Cross-Tenant Leak Test", () => {
   let sql: postgres.Sql;
   const tenantA = "11111111-1111-1111-1111-111111111111";
@@ -56,7 +59,8 @@ describe("RLS Cross-Tenant Leak Test", () => {
   });
 
   it("Tenant A only sees Tenant A's data", async () => {
-    const rows = await queryWithRLS(DB_URL, tenantA, async (tx) => {
+    // R1 FIX: Pass TEST_PROJECT_ID as the first argument
+    const rows = await queryWithRLS(TEST_PROJECT_ID, DB_URL, tenantA, async (tx) => {
       return await tx`SELECT amount FROM leak_test_orders`;
     });
 
@@ -65,7 +69,8 @@ describe("RLS Cross-Tenant Leak Test", () => {
   });
 
   it("Tenant B only sees Tenant B's data", async () => {
-    const rows = await queryWithRLS(DB_URL, tenantB, async (tx) => {
+    // R1 FIX: Pass TEST_PROJECT_ID as the first argument
+    const rows = await queryWithRLS(TEST_PROJECT_ID, DB_URL, tenantB, async (tx) => {
       return await tx`SELECT amount FROM leak_test_orders`;
     });
 
@@ -74,9 +79,10 @@ describe("RLS Cross-Tenant Leak Test", () => {
   });
 
   it("Connections are not leaked across pooled requests", async () => {
+    // R1 FIX: Pass TEST_PROJECT_ID as the first argument to both calls
     const [rowsA, rowsB] = await Promise.all([
-      queryWithRLS(DB_URL, tenantA, async (tx) => await tx`SELECT amount FROM leak_test_orders`),
-      queryWithRLS(DB_URL, tenantB, async (tx) => await tx`SELECT amount FROM leak_test_orders`),
+      queryWithRLS(TEST_PROJECT_ID, DB_URL, tenantA, async (tx) => await tx`SELECT amount FROM leak_test_orders`),
+      queryWithRLS(TEST_PROJECT_ID, DB_URL, tenantB, async (tx) => await tx`SELECT amount FROM leak_test_orders`),
     ]);
 
     expect(rowsA).toHaveLength(1);

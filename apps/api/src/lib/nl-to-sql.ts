@@ -24,7 +24,32 @@ export async function generateSQL(
     }))
   };
 
-const schemaPrompt = JSON.stringify(safeLayer.tables, null, 2);
+  // R2 FIX: Only send tables that are relevant to the question
+  const questionLower = question.toLowerCase();
+  const questionWords = questionLower.split(/\s+/).filter(w => w.length > 3);
+
+  const relevantTables = safeLayer.tables.filter(table => {
+    const tableNameLower = table.name.toLowerCase();
+    const tableDescLower = table.description.toLowerCase();
+    
+    // Include the table if its name/description matches a question word
+    if (questionWords.some(w => tableNameLower.includes(w) || tableDescLower.includes(w))) {
+      return true;
+    }
+    
+    // Include the table if any column name/description matches a question word
+    return table.columns.some(col => {
+      const colLower = col.name.toLowerCase();
+      const descLower = col.description.toLowerCase();
+      return questionWords.some(w => colLower.includes(w) || descLower.includes(w));
+    });
+  });
+
+  // If no tables matched, fall back to sending all tables (for small schemas)
+  const tablesToSend = relevantTables.length > 0 ? relevantTables : safeLayer.tables;
+
+  const schemaPrompt = JSON.stringify(tablesToSend, null, 2);
+
   const metricsPrompt = safeLayer.metrics && safeLayer.metrics.length > 0 
     ? JSON.stringify(safeLayer.metrics, null, 2) 
     : "No custom metrics defined.";

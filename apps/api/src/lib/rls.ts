@@ -1,18 +1,15 @@
 import postgres from "postgres";
 import { AppError } from "../errors";
+import { getProjectPool } from "./pool-manager";
 
 export async function queryWithRLS(
+  projectId: string, // NEW: Required for pool lookup
   connectionString: string,
   tenantId: string,
   queryFn: (tx: postgres.TransactionSql) => Promise<any>
 ) {
-  // S14 FIX: Added connect_timeout to prevent hanging connections
-  const sql = postgres(connectionString, { 
-    max: 1, 
-    prepare: false, 
-    ssl: "require",
-    connect_timeout: 10 
-  });
+  // R1 FIX: Use a shared pool instead of creating a new one per request
+  const sql = getProjectPool(projectId, connectionString);
 
   try {
     const result = await sql.begin(async (tx) => {
@@ -32,7 +29,5 @@ export async function queryWithRLS(
       throw new AppError("invalid_sql", "The query took too long to execute.", 400);
     }
     throw err;
-  } finally {
-    await sql.end();
   }
 }
