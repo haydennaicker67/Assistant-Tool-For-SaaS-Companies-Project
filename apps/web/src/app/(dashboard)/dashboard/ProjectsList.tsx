@@ -3,8 +3,9 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { db } from '@vizzly-sa/api/src/lib/db'
 import { projects } from '@vizzly-sa/api/src/db/schema'
-import { desc, eq } from 'drizzle-orm' // Import eq
+import { desc, eq } from 'drizzle-orm'
 import { UpgradeButton } from '@/app/components/UpgradeButton'
+import { DeleteProjectButton } from '@/app/components/DeleteProjectButton'
 
 export async function ProjectsList() {
   const supabase = await createClient()
@@ -12,7 +13,6 @@ export async function ProjectsList() {
 
   if (!user) redirect('/login')
 
-  // S2 FIX: Only fetch projects owned by this user
   const allProjects = await db.select()
     .from(projects)
     .where(eq(projects.userId, user.id))
@@ -61,7 +61,6 @@ export async function ProjectsList() {
             <div key={project.id} className="bg-white border rounded-lg shadow-sm hover:shadow-md transition-shadow flex flex-col">
               <div className="p-6 flex-1">
                 <div className="flex justify-between items-start mb-4">
-                  
                   <Link href={`/projects/${project.id}/overview`}>
                     <h2 className="text-xl font-bold text-gray-900 truncate hover:text-blue-600 transition-colors">{project.name}</h2>
                   </Link>
@@ -85,35 +84,16 @@ export async function ProjectsList() {
 
               <div className="bg-gray-50 px-6 py-3 border-t rounded-b-lg flex flex-wrap gap-3 justify-between items-center">
                 <div className="flex flex-wrap gap-3">
-                  <Link 
-                    href={`/projects/${project.id}/overview`}
-                    className="text-sm font-medium text-gray-800 hover:text-gray-900"
-                  >
-                    Overview
-                  </Link>
-                  <Link 
-                    href={`/projects/${project.id}/semantic-layer`}
-                    className="text-sm font-medium text-blue-600 hover:text-blue-800"
-                  >
-                    Edit Layer
-                  </Link>
-                  <Link 
-                    href={`/projects/${project.id}/audit`}
-                    className="text-sm font-medium text-gray-600 hover:text-gray-800"
-                  >
-                    Audit Log
-                  </Link>
-                  <Link 
-                    href={`/projects/${project.id}/dashboard`}
-                    className="text-sm font-medium text-green-600 hover:text-green-800"
-                  >
-                    View Dashboard →
-                  </Link>
+                  <Link href={`/projects/${project.id}/overview`} className="text-sm font-medium text-gray-800 hover:text-gray-900">Overview</Link>
+                  <Link href={`/projects/${project.id}/semantic-layer`} className="text-sm font-medium text-blue-600 hover:text-blue-800">Edit Layer</Link>
+                  <Link href={`/projects/${project.id}/audit`} className="text-sm font-medium text-gray-600 hover:text-gray-800">Audit Log</Link>
+                  <Link href={`/projects/${project.id}/dashboard`} className="text-sm font-medium text-green-600 hover:text-green-800">View Dashboard →</Link>
                 </div>
                 
-                {project.planTier === "free" && (
-                  <UpgradeButton projectId={project.id} />
-                )}
+                <div className="flex gap-2">
+                  {project.planTier === "free" && <UpgradeButton projectId={project.id} />}
+                  <DeleteProjectButton projectId={project.id} projectName={project.name} />
+                </div>
               </div>
             </div>
           ))}

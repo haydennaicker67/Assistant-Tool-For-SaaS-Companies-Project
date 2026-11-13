@@ -61,7 +61,6 @@ projectRoutes.post("/connect-db", async (c) => {
     logger.info("Generating semantic layer...");
     const semanticLayer = await generateSemanticLayer(rawSchema);
 
-    // Q6 FIX: Wrap both inserts in a transaction
     const newProject = await db.transaction(async (tx) => {
       const [createdProject] = await tx.insert(projects).values({
         name,
@@ -123,7 +122,6 @@ projectRoutes.post("/:id/semantic-layer/publish", async (c) => {
     throw new AppError("invalid_request", "Project not found or unauthorized", 404);
   }
 
-  // S18 FIX: Validate the layer before saving
   let validatedLayer = null;
   if (body.layer) {
     validatedLayer = validateLayer(body.layer);
@@ -158,7 +156,6 @@ projectRoutes.post("/:id/semantic-layer/publish", async (c) => {
     versionNumber: nextVersionNumber
   });
 
-  // S7 FIX: Generate RSA keys if they don't exist
   let privateKeyPem: string | null = null;
   const [existingKey] = await db.select().from(embedSecrets).where(eq(embedSecrets.projectId, projectId));
   
@@ -186,4 +183,20 @@ projectRoutes.post("/:id/semantic-layer/publish", async (c) => {
   }).catch(console.error);
 
   return c.json({ ok: true, privateKey: privateKeyPem, version: nextVersionNumber });
+});
+
+// D4 FIX: Project deletion (cascades to all child tables)
+projectRoutes.delete("/:id", async (c) => {
+  const userId = c.get("userId");
+  const projectId = c.req.param("id");
+
+  const [project] = await db.select().from(projects).where(eq(projects.id, projectId));
+  if (!project || project.userId !== userId) {
+    throw new AppError("invalid_request", "Project not found or unauthorized", 404);
+  }
+
+  // ON DELETE CASCADE on all FKs handles the child cleanup
+  await db.delete(projects).where(eq(projects.id, projectId));
+
+  return c.json({ ok: true, message: "Project deleted successfully" });
 });
