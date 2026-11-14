@@ -1,10 +1,7 @@
-import { db } from '@vizzly-sa/api/src/lib/db'
-import { embedSecrets } from '@vizzly-sa/api/src/db/schema'
-import { eq } from 'drizzle-orm'
-import { signEmbedToken } from '@vizzly-sa/shared'
+import { Suspense } from 'react'
 import { TestDashboardClient } from './client'
 
-export default async function TestDashboardPage({ params }: { params: Promise<{ id: string }> }) {
+async function DashboardContent({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = await params
   const projectId = resolvedParams.id
 
@@ -20,5 +17,13 @@ export default async function TestDashboardPage({ params }: { params: Promise<{ 
 
       <TestDashboardClient projectId={projectId} />
     </div>
+  )
+}
+
+export default function TestDashboardPage({ params }: { params: Promise<{ id: string }> }) {
+  return (
+    <Suspense fallback={<div className="p-8 text-center">Loading dashboard...</div>}>
+      <DashboardContent params={params} />
+    </Suspense>
   )
 }
