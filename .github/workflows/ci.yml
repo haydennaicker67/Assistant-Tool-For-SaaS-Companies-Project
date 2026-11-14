@@ -37,4 +37,7 @@ jobs:
           DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/postgres"
           EMBED_JWT_SECRET: "dummy_secret_for_ci_build_only_12345"
           ENCRYPTION_KEY: "12345678901234567890123456789012"
+          NEXT_PUBLIC_API_BASE_URL: "http://localhost:3001"
+          NEXT_PUBLIC_SUPABASE_URL: "https://dummy.supabase.co"
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: "dummy_anon_key"
         run: pnpm build
