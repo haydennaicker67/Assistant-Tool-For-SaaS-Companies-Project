@@ -1,11 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { fetchApi } from '@/utils/api'
 
-export default function ProjectOverviewPage() {
+function ProjectOverviewContent() {
   const params = useParams()
   const projectId = params.id as string
   const [chartData, setChartData] = useState<any[]>([])
@@ -92,5 +92,13 @@ export default function ProjectOverviewPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function ProjectOverviewPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center">Loading overview...</div>}>
+      <ProjectOverviewContent />
+    </Suspense>
   )
 }
