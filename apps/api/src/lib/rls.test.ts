@@ -8,7 +8,6 @@ import { queryWithRLS } from "./rls";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__dirname, "../../../../.env") });
 
-// S25 FIX: Only use TEST_DATABASE_URL (no production fallback)
 const DB_URL = process.env.TEST_DATABASE_URL;
 
 if (!DB_URL) {
@@ -17,7 +16,6 @@ if (!DB_URL) {
   process.exit(1);
 }
 
-// R1 FIX: Use a fixed test project ID so the pool manager reuses the connection
 const TEST_PROJECT_ID = "test-project-rls-leak";
 
 describe("RLS Cross-Tenant Leak Test", () => {
@@ -26,7 +24,6 @@ describe("RLS Cross-Tenant Leak Test", () => {
   const tenantB = "22222222-2222-2222-2222-222222222222";
 
   beforeAll(async () => {
-    // S25 FIX: Sanity check — refuse to run against known production URLs
     if (DB_URL === process.env.DATABASE_URL) {
       throw new Error("CRITICAL: TEST_DATABASE_URL is the same as DATABASE_URL. Refusing to run destructive tests against production.");
     }
@@ -59,8 +56,8 @@ describe("RLS Cross-Tenant Leak Test", () => {
   });
 
   it("Tenant A only sees Tenant A's data", async () => {
-    // R1 FIX: Pass TEST_PROJECT_ID as the first argument
-    const rows = await queryWithRLS(TEST_PROJECT_ID, DB_URL, tenantA, async (tx) => {
+    // S20 FIX: Pass null for the CA certificate
+    const rows = await queryWithRLS(TEST_PROJECT_ID, DB_URL, tenantA, null, async (tx) => {
       return await tx`SELECT amount FROM leak_test_orders`;
     });
 
@@ -69,8 +66,8 @@ describe("RLS Cross-Tenant Leak Test", () => {
   });
 
   it("Tenant B only sees Tenant B's data", async () => {
-    // R1 FIX: Pass TEST_PROJECT_ID as the first argument
-    const rows = await queryWithRLS(TEST_PROJECT_ID, DB_URL, tenantB, async (tx) => {
+    // S20 FIX: Pass null for the CA certificate
+    const rows = await queryWithRLS(TEST_PROJECT_ID, DB_URL, tenantB, null, async (tx) => {
       return await tx`SELECT amount FROM leak_test_orders`;
     });
 
@@ -79,10 +76,10 @@ describe("RLS Cross-Tenant Leak Test", () => {
   });
 
   it("Connections are not leaked across pooled requests", async () => {
-    // R1 FIX: Pass TEST_PROJECT_ID as the first argument to both calls
+    // S20 FIX: Pass null for the CA certificate
     const [rowsA, rowsB] = await Promise.all([
-      queryWithRLS(TEST_PROJECT_ID, DB_URL, tenantA, async (tx) => await tx`SELECT amount FROM leak_test_orders`),
-      queryWithRLS(TEST_PROJECT_ID, DB_URL, tenantB, async (tx) => await tx`SELECT amount FROM leak_test_orders`),
+      queryWithRLS(TEST_PROJECT_ID, DB_URL, tenantA, null, async (tx) => await tx`SELECT amount FROM leak_test_orders`),
+      queryWithRLS(TEST_PROJECT_ID, DB_URL, tenantB, null, async (tx) => await tx`SELECT amount FROM leak_test_orders`),
     ]);
 
     expect(rowsA).toHaveLength(1);

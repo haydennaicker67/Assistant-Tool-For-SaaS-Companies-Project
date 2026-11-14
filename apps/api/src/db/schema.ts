@@ -27,6 +27,9 @@ export const projects = pgTable("projects", {
 
   // RSA private key for test dashboard
   embedPrivateKeyEncrypted: text("embed_private_key_encrypted"),
+
+  // S20 FIX: Optional CA certificate for TLS verification
+  caCertificateEncrypted: text("ca_certificate_encrypted"),
 });
 
 // 2. Tenants
@@ -45,7 +48,6 @@ export const semanticLayers = pgTable("semantic_layers", {
   published: boolean("published").default(false).notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 }, (table) => ({
-  // D2 FIX: One layer per project
   projectIdUnique: uniqueIndex("semantic_layers_project_id_unique").on(table.projectId),
 }));
 
@@ -56,7 +58,6 @@ export const embedSecrets = pgTable("embed_secrets", {
   publicKey: text("public_key").notNull(), 
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 }, (table) => ({
-  // D2 FIX: One key pair per project
   projectIdUnique: uniqueIndex("embed_secrets_project_id_unique").on(table.projectId),
 }));
 
@@ -68,7 +69,6 @@ export const usageEvents = pgTable("usage_events", {
   eventType: text("event_type").notNull(), 
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 }, (table) => ({
-  // D2 FIX: Fast lookup for usage limit checks
   projectCreatedIdx: index("usage_events_project_created_idx").on(table.projectId, table.createdAt),
 }));
 
@@ -88,7 +88,6 @@ export const auditLogs = pgTable("audit_logs", {
   details: jsonb("details").notNull(), 
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 }, (table) => ({
-  // D2 FIX: Fast audit log queries
   projectCreatedIdx: index("audit_logs_project_created_idx").on(table.projectId, table.createdAt),
 }));
 

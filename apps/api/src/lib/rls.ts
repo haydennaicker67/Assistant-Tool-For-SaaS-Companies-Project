@@ -3,13 +3,14 @@ import { AppError } from "../errors";
 import { getProjectPool } from "./pool-manager";
 
 export async function queryWithRLS(
-  projectId: string, // NEW: Required for pool lookup
+  projectId: string,
   connectionString: string,
   tenantId: string,
+  caCertificate: string | null, // S20 FIX: Accept CA cert
   queryFn: (tx: postgres.TransactionSql) => Promise<any>
 ) {
-  // R1 FIX: Use a shared pool instead of creating a new one per request
-  const sql = getProjectPool(projectId, connectionString);
+  // S20 FIX: Pass the CA cert to the pool manager
+  const sql = getProjectPool(projectId, connectionString, caCertificate);
 
   try {
     const result = await sql.begin(async (tx) => {

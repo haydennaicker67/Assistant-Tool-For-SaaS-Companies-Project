@@ -30,7 +30,6 @@ const nlRequestSchema = z.object({
 });
 
 queryRoutes.post("/nl", authMiddleware, async (c) => {
-  // Q4 FIX: Start the timer at the very beginning of the request
   const requestStart = Date.now();
 
   const logger = c.get("logger");
@@ -57,7 +56,6 @@ queryRoutes.post("/nl", authMiddleware, async (c) => {
   const [project] = await db.select().from(projects).where(eq(projects.id, projectId));
   if (!project) throw new AppError("invalid_request", "Project not found", 404);
 
-  // Q5 FIX: Only allow queries against PUBLISHED layers
   const [layerRecord] = await db.select().from(semanticLayers).where(eq(semanticLayers.projectId, projectId));
   if (!layerRecord) throw new AppError("invalid_request", "Semantic layer not found", 404);
   if (!layerRecord.published) {
@@ -85,6 +83,8 @@ queryRoutes.post("/nl", authMiddleware, async (c) => {
   }
 
   const connectionString = decrypt(project.dbConnectionStringEncrypted);
+  // S20 FIX: Decrypt the CA cert if it exists
+  const caCertificate = project.caCertificateEncrypted ? decrypt(project.caCertificateEncrypted) : null;
 
   logger.info({ questionLength: question.length }, "Generating SQL");
   const { sql, explanation } = await generateSQL(question, layerRecord.layer, dateRange);
@@ -97,20 +97,18 @@ queryRoutes.post("/nl", authMiddleware, async (c) => {
   let rows: any[];
   
   try {
-        rows = await queryWithRLS(projectId, connectionString, claims.tenant_id, async (tx) => {
-      // Q2 FIX: Enforce a hard cap server-side
+    // S20 FIX: Pass the CA cert to queryWithRLS
+    rows = await queryWithRLS(projectId, connectionString, claims.tenant_id, caCertificate, async (tx) => {
       const safeSql = `SELECT * FROM (${validatedSql.replace(/;+$/, "")}) AS _vizzly_inner LIMIT 1000`;
       return await tx.unsafe(safeSql); 
     });
   } catch (err: any) {
     logger.error({ err }, "Query execution failed");
-    // S15 FIX: Do not leak the raw Postgres error to the client
     throw new AppError("invalid_sql", "I couldn't understand that question—try rephrasing.", 400);
   }
 
   const queryMs = Date.now() - dbStart;
 
-  // Q3 FIX: Better type detection (Postgres returns BIGINT/NUMERIC as strings)
   const isNumericString = (val: any) => typeof val === "string" && /^-?\d+(\.\d+)?$/.test(val);
   
   const columns = rows.length > 0 
@@ -125,7 +123,6 @@ queryRoutes.post("/nl", authMiddleware, async (c) => {
       })
     : [];
 
-  // Q3 FIX: Detect chart type from semantic layer column types
   let chartType: "table" | "bar" | "line" | "pie" = "table";
   
   if (columns.length >= 2) {
@@ -151,11 +148,10 @@ queryRoutes.post("/nl", authMiddleware, async (c) => {
     rows,
     meta: {
       explanation,
-      // S15 FIX: Only return the SQL if the user is an admin
       sql: claims.role === "admin" ? sql : undefined,
       queryMs,
-      totalMs: Date.now() - requestStart, // Q4 FIX: Full request duration
-      aiMs: Date.now() - requestStart - queryMs, // Q4 FIX: AI + validation time
+      totalMs: Date.now() - requestStart,
+      aiMs: Date.now() - requestStart - queryMs,
       cached: false,
       rowCount: rows.length,
       truncated: false,
