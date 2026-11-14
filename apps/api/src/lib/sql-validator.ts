@@ -17,21 +17,27 @@ export function validateSQL(sql: string, layer: SemanticLayer): string {
   }
 
   // 3. Ensure the statement is a SELECT
-   const statement = ast[0];
+  const statement = ast[0];
   if (!statement) {
     throw new AppError("invalid_sql", "Security violation: Empty query.", 400);
+  }
+  if (statement.type !== "select") {
+    throw new AppError("invalid_sql", "Security violation: Only SELECT queries are allowed.", 400);
   }
 
   // 4. Block system catalogs and forbidden tables
   const allowedTables = new Set(layer.tables.map(t => t.name.toLowerCase()));
   
-  // Walk the AST to find all tables being queried
   const extractedTables: string[] = [];
   function findTables(node: any) {
     if (!node) return;
-    if (node.type === "table") extractedTables.push(node.name.toLowerCase());
-    if (node.type === "ref" && node.name) extractedTables.push(node.name.toLowerCase());
-    // Recursively check joins, subqueries, etc.
+    // S3 FIX: Guard against non-string names (parser can return objects for aliases)
+    if (node.type === "table" && typeof node.name === "string") {
+      extractedTables.push(node.name.toLowerCase());
+    }
+    if (node.type === "ref" && typeof node.name === "string") {
+      extractedTables.push(node.name.toLowerCase());
+    }
     for (const key of Object.keys(node)) {
       if (Array.isArray(node[key])) node[key].forEach(findTables);
       else if (typeof node[key] === 'object') findTables(node[key]);
