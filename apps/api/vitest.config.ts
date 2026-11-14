@@ -9,7 +9,12 @@ export default defineConfig({
       GEMINI_API_KEY: "dummy",
       UPSTASH_REDIS_REST_URL: "https://dummy.upstash.io",
       UPSTASH_REDIS_REST_TOKEN: "dummy",
-      PAYSTACK_SECRET_KEY: "sk_test_dummy"
+      PAYSTACK_SECRET_KEY: "sk_test_dummy",
+      
+      // S1 FIX: Add these so require-user.ts doesn't crash
+      NEXT_PUBLIC_SUPABASE_URL: "https://dummy.supabase.co",
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: "dummy_anon_key",
+      SUPABASE_SERVICE_ROLE_KEY: "dummy_service_role_key"
     }
   }
 });

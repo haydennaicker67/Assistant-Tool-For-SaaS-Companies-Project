@@ -25,20 +25,17 @@ export function validateSQL(sql: string, layer: SemanticLayer): string {
     throw new AppError("invalid_sql", "Security violation: Only SELECT queries are allowed.", 400);
   }
 
-  // 4. Block dangerous SQL patterns in the raw string (defense-in-depth)
   const lowerSql = sql.toLowerCase();
+
+  // 4. Block system catalogs and DDL/DML in raw string (defense in depth)
+  if (lowerSql.includes("pg_") || lowerSql.includes("information_schema") || lowerSql.includes("pg_catalog")) {
+    throw new AppError("invalid_sql", "Security violation: System tables are not allowed.", 400);
+  }
   
-  // Block multi-statements (shouldn't happen after parse check, but just in case)
   if (lowerSql.includes(";")) {
     throw new AppError("invalid_sql", "Security violation: Multi-statement queries are not allowed.", 400);
   }
 
-  // Block system catalogs
-  if (lowerSql.includes("pg_catalog") || lowerSql.includes("pg_") || lowerSql.includes("information_schema")) {
-    throw new AppError("invalid_sql", "Security violation: System tables are not allowed.", 400);
-  }
-
-  // Block DDL/DML keywords
   const blockedKeywords = ["drop", "alter", "truncate", "insert", "update", "delete", "create", "grant", "revoke"];
   for (const kw of blockedKeywords) {
     if (new RegExp(`\\b${kw}\\b`).test(lowerSql)) {
@@ -46,14 +43,13 @@ export function validateSQL(sql: string, layer: SemanticLayer): string {
     }
   }
 
-  // 5. Extract all table references from the AST (both direct and nested)
+  // 5. Extract all table references from the AST
   const allowedTables = new Set(layer.tables.map(t => t.name.toLowerCase()));
   const extractedTables: string[] = [];
   
   function walk(node: any) {
     if (!node || typeof node !== "object") return;
     
-    // Capture table nodes (column refs use type: "ref")
     if (node.type === "table" && typeof node.name === "string") {
       extractedTables.push(node.name.toLowerCase());
     }
@@ -66,13 +62,25 @@ export function validateSQL(sql: string, layer: SemanticLayer): string {
   }
   walk(statement);
 
+  // Fallback: If the AST walk didn't find any tables (for some parser quirks),
+  // do a raw regex extraction from the FROM clause.
+  if (extractedTables.length === 0) {
+    const fromMatches = lowerSql.match(/from\s+([a-z0-9_]+)/g);
+    if (fromMatches) {
+      fromMatches.forEach(m => {
+        const tableName = m.replace(/from\s+/i, "").trim();
+        extractedTables.push(tableName);
+      });
+    }
+  }
+
   for (const table of extractedTables) {
     if (!allowedTables.has(table)) {
       throw new AppError("table_not_allowed", `Table '${table}' is not in your semantic layer.`, 400);
     }
   }
 
-  // 6. Auto-append LIMIT if it's missing and it's not an aggregate
+  // 6. Auto-append LIMIT
   let finalSql = sql.trim().replace(/;+$/, "");
   const hasLimit = /limit\s+\d+/i.test(finalSql);
   const isAggregate = /count\(|sum\(|avg\(|max\(|min\(/i.test(finalSql);
