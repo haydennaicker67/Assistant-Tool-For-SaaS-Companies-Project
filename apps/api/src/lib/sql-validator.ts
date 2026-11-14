@@ -25,20 +25,37 @@ export function validateSQL(sql: string, layer: SemanticLayer): string {
     throw new AppError("invalid_sql", "Security violation: Only SELECT queries are allowed.", 400);
   }
 
-  // 4. Extract all table references (both from `from` and `join`, including nested subqueries)
+  // 4. Block dangerous SQL patterns in the raw string (defense-in-depth)
+  const lowerSql = sql.toLowerCase();
+  
+  // Block multi-statements (shouldn't happen after parse check, but just in case)
+  if (lowerSql.includes(";")) {
+    throw new AppError("invalid_sql", "Security violation: Multi-statement queries are not allowed.", 400);
+  }
+
+  // Block system catalogs
+  if (lowerSql.includes("pg_catalog") || lowerSql.includes("pg_") || lowerSql.includes("information_schema")) {
+    throw new AppError("invalid_sql", "Security violation: System tables are not allowed.", 400);
+  }
+
+  // Block DDL/DML keywords
+  const blockedKeywords = ["drop", "alter", "truncate", "insert", "update", "delete", "create", "grant", "revoke"];
+  for (const kw of blockedKeywords) {
+    if (new RegExp(`\\b${kw}\\b`).test(lowerSql)) {
+      throw new AppError("invalid_sql", `Security violation: ${kw.toUpperCase()} is not allowed.`, 400);
+    }
+  }
+
+  // 5. Extract all table references from the AST (both direct and nested)
   const allowedTables = new Set(layer.tables.map(t => t.name.toLowerCase()));
   const extractedTables: string[] = [];
   
   function walk(node: any) {
     if (!node || typeof node !== "object") return;
     
-    // Only capture `type: "table"` nodes (column refs use `type: "ref"`)
+    // Capture table nodes (column refs use type: "ref")
     if (node.type === "table" && typeof node.name === "string") {
-      // If a schema is present, include it so we can catch pg_catalog.*
-      const qualified = node.schema && typeof node.schema === "string" 
-        ? `${node.schema}.${node.name}` 
-        : node.name;
-      extractedTables.push(qualified.toLowerCase());
+      extractedTables.push(node.name.toLowerCase());
     }
     
     for (const key of Object.keys(node)) {
@@ -50,15 +67,12 @@ export function validateSQL(sql: string, layer: SemanticLayer): string {
   walk(statement);
 
   for (const table of extractedTables) {
-    if (table.includes("pg_") || table.includes("information_schema")) {
-      throw new AppError("invalid_sql", "Security violation: System tables are not allowed.", 400);
-    }
     if (!allowedTables.has(table)) {
       throw new AppError("table_not_allowed", `Table '${table}' is not in your semantic layer.`, 400);
     }
   }
 
-  // 5. Auto-append LIMIT if it's missing and it's not an aggregate
+  // 6. Auto-append LIMIT if it's missing and it's not an aggregate
   let finalSql = sql.trim().replace(/;+$/, "");
   const hasLimit = /limit\s+\d+/i.test(finalSql);
   const isAggregate = /count\(|sum\(|avg\(|max\(|min\(/i.test(finalSql);
