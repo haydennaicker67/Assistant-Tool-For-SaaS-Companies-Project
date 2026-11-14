@@ -83,30 +83,44 @@ queryRoutes.post("/nl", authMiddleware, async (c) => {
   }
 
   const connectionString = decrypt(project.dbConnectionStringEncrypted);
-  // S20 FIX: Decrypt the CA cert if it exists
   const caCertificate = project.caCertificateEncrypted ? decrypt(project.caCertificateEncrypted) : null;
 
   logger.info({ questionLength: question.length }, "Generating SQL");
-  const { sql, explanation } = await generateSQL(question, layerRecord.layer, dateRange);
+  let { sql, explanation } = await generateSQL(question, layerRecord.layer, dateRange);
 
   logger.info({ hasSql: !!sql }, "Validating SQL");
-  const validatedSql = validateSQL(sql, layerRecord.layer);
+  let validatedSql = validateSQL(sql, layerRecord.layer);
 
   logger.info("Executing query");
   const dbStart = Date.now();
   let rows: any[];
   
   try {
-    // S20 FIX: Pass the CA cert to queryWithRLS
     rows = await queryWithRLS(projectId, connectionString, claims.tenant_id, caCertificate, async (tx) => {
       const safeSql = `SELECT * FROM (${validatedSql.replace(/;+$/, "")}) AS _vizzly_inner LIMIT 1000`;
       return await tx.unsafe(safeSql); 
     });
   } catch (err: any) {
-    logger.error({ err }, "Query execution failed");
-    throw new AppError("invalid_sql", "I couldn't understand that question—try rephrasing.", 400);
-  }
+    logger.warn({ err: err.message }, "Initial query failed, attempting self-correction");
+    
+    // R3 FIX: Self-correction retry
+    try {
+      const correction = await generateSQL(question, layerRecord.layer, dateRange, err.message, sql);
+      sql = correction.sql;
+      explanation = correction.explanation;
+      validatedSql = validateSQL(sql, layerRecord.layer);
 
+      rows = await queryWithRLS(projectId, connectionString, claims.tenant_id, caCertificate, async (tx) => {
+        const safeSql = `SELECT * FROM (${validatedSql.replace(/;+$/, "")}) AS _vizzly_inner LIMIT 1000`;
+        return await tx.unsafe(safeSql); 
+      });
+      logger.info("Self-correction succeeded!");
+    } catch (retryErr: any) {
+      logger.error({ err: retryErr }, "Self-correction failed");
+      throw new AppError("invalid_sql", "I couldn't understand that question—try rephrasing.", 400);
+    }
+  }
+  
   const queryMs = Date.now() - dbStart;
 
   const isNumericString = (val: any) => typeof val === "string" && /^-?\d+(\.\d+)?$/.test(val);

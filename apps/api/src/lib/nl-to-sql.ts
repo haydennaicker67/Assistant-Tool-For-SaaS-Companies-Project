@@ -12,7 +12,9 @@ export interface NLSQLResult {
 export async function generateSQL(
   question: string, 
   layer: SemanticLayer,
-  dateRange?: { from: string; to: string }
+  dateRange?: { from: string; to: string },
+  previousError?: string, // R3 FIX: Accept the error for self-correction
+  previousSql?: string    // R3 FIX: Accept the bad SQL
 ): Promise<NLSQLResult> {
 
   // S10 FIX: Strip out sensitive columns before sending to the AI
@@ -32,12 +34,10 @@ export async function generateSQL(
     const tableNameLower = table.name.toLowerCase();
     const tableDescLower = table.description.toLowerCase();
     
-    // Include the table if its name/description matches a question word
     if (questionWords.some(w => tableNameLower.includes(w) || tableDescLower.includes(w))) {
       return true;
     }
     
-    // Include the table if any column name/description matches a question word
     return table.columns.some(col => {
       const colLower = col.name.toLowerCase();
       const descLower = col.description.toLowerCase();
@@ -45,9 +45,7 @@ export async function generateSQL(
     });
   });
 
-  // If no tables matched, fall back to sending all tables (for small schemas)
   const tablesToSend = relevantTables.length > 0 ? relevantTables : safeLayer.tables;
-
   const schemaPrompt = JSON.stringify(tablesToSend, null, 2);
 
   const metricsPrompt = safeLayer.metrics && safeLayer.metrics.length > 0 
@@ -56,6 +54,11 @@ export async function generateSQL(
 
   const dateInstruction = dateRange 
     ? `IMPORTANT: The user has selected a date range. You MUST add a WHERE clause filtering the main timestamp column (e.g., created_at) between '${dateRange.from}' and '${dateRange.to}'.`
+    : "";
+
+  // R3 FIX: Add the correction prompt if there was an error
+  const correctionPrompt = previousError && previousSql 
+    ? `\n\nIMPORTANT CORRECTION: You previously generated this SQL:\n${previousSql}\nBut the database returned this error:\n"${previousError}"\nPlease fix the SQL to resolve this error.`
     : "";
 
   let retries = 3;
@@ -74,6 +77,7 @@ Custom Metrics (Use these exact SQL expressions when the user asks for these con
 ${metricsPrompt}
 
 ${dateInstruction}
+${correctionPrompt}
 
 Rules:
 - Return ONLY a SELECT statement.
