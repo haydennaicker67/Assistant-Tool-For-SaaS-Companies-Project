@@ -1,11 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { fetchApi } from '@/utils/api'
 
-export default function VersionHistoryPage() {
+function VersionHistoryContent() {
   const params = useParams()
   const router = useRouter()
   const projectId = params.id as string
@@ -124,5 +124,13 @@ export default function VersionHistoryPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function VersionHistoryPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center">Loading version history...</div>}>
+      <VersionHistoryContent />
+    </Suspense>
   )
 }
