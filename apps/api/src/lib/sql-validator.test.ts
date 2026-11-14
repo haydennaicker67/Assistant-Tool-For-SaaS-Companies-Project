@@ -45,7 +45,7 @@ const goldenQuestions = [
   "SELECT * FROM usage_events WHERE created_at > NOW() - INTERVAL '7 days'",
   "SELECT event_type, COUNT(*) as count FROM usage_events GROUP BY event_type",
   "SELECT * FROM projects WHERE name ILIKE '%acme%' LIMIT 5",
-  "SELECT SUM(id) FROM projects", // Invalid (summing UUID) but syntactically valid
+  "SELECT SUM(id) FROM projects",
   "SELECT * FROM projects ORDER BY created_at DESC LIMIT 1"
 ];
 

@@ -29,21 +29,56 @@ export function validateSQL(sql: string, layer: SemanticLayer): string {
   const allowedTables = new Set(layer.tables.map(t => t.name.toLowerCase()));
   
   const extractedTables: string[] = [];
-  function findTables(node: any) {
-    if (!node) return;
-    // S3 FIX: Guard against non-string names (parser can return objects for aliases)
-    if (node.type === "table" && typeof node.name === "string") {
-      extractedTables.push(node.name.toLowerCase());
+  
+  // S3 FIX: Only walk the FROM clause, not SELECT columns
+  function extractTablesFromFrom(fromClause: any) {
+    if (!fromClause) return;
+    
+    // Direct table
+    if (fromClause.type === "table" && typeof fromClause.name === "string") {
+      extractedTables.push(fromClause.name.toLowerCase());
     }
-    if (node.type === "ref" && typeof node.name === "string") {
-      extractedTables.push(node.name.toLowerCase());
+    
+    // Subquery
+    if (fromClause.type === "statement" && fromClause.statement) {
+      walkStatement(fromClause.statement);
     }
-    for (const key of Object.keys(node)) {
-      if (Array.isArray(node[key])) node[key].forEach(findTables);
-      else if (typeof node[key] === 'object') findTables(node[key]);
+    
+    // JOINs
+    if (Array.isArray(fromClause.join)) {
+      fromClause.join.forEach((j: any) => {
+        if (j.type === "table" && typeof j.name === "string") {
+          extractedTables.push(j.name.toLowerCase());
+        }
+        if (Array.isArray(j.join)) {
+          j.join.forEach((inner: any) => {
+            if (inner.type === "table" && typeof inner.name === "string") {
+              extractedTables.push(inner.name.toLowerCase());
+            }
+          });
+        }
+      });
     }
   }
-  findTables(statement);
+  
+  function walkStatement(node: any) {
+    if (!node) return;
+    
+    if (node.type === "select" && Array.isArray(node.from)) {
+      node.from.forEach(extractTablesFromFrom);
+    }
+    
+    // Recurse into subqueries anywhere in the statement
+    for (const key of Object.keys(node)) {
+      if (Array.isArray(node[key])) {
+        node[key].forEach(walkStatement);
+      } else if (typeof node[key] === "object" && node[key] !== null) {
+        walkStatement(node[key]);
+      }
+    }
+  }
+  
+  walkStatement(statement);
 
   for (const table of extractedTables) {
     if (table.includes("pg_") || table.includes("information_schema")) {
