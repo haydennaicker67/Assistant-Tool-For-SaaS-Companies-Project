@@ -25,60 +25,29 @@ export function validateSQL(sql: string, layer: SemanticLayer): string {
     throw new AppError("invalid_sql", "Security violation: Only SELECT queries are allowed.", 400);
   }
 
-  // 4. Block system catalogs and forbidden tables
+  // 4. Extract all table references (both from `from` and `join`, including nested subqueries)
   const allowedTables = new Set(layer.tables.map(t => t.name.toLowerCase()));
-  
   const extractedTables: string[] = [];
   
-  // S3 FIX: Only walk the FROM clause, not SELECT columns
-  function extractTablesFromFrom(fromClause: any) {
-    if (!fromClause) return;
+  function walk(node: any) {
+    if (!node || typeof node !== "object") return;
     
-    // Direct table
-    if (fromClause.type === "table" && typeof fromClause.name === "string") {
-      extractedTables.push(fromClause.name.toLowerCase());
+    // Only capture `type: "table"` nodes (column refs use `type: "ref"`)
+    if (node.type === "table" && typeof node.name === "string") {
+      // If a schema is present, include it so we can catch pg_catalog.*
+      const qualified = node.schema && typeof node.schema === "string" 
+        ? `${node.schema}.${node.name}` 
+        : node.name;
+      extractedTables.push(qualified.toLowerCase());
     }
     
-    // Subquery
-    if (fromClause.type === "statement" && fromClause.statement) {
-      walkStatement(fromClause.statement);
-    }
-    
-    // JOINs
-    if (Array.isArray(fromClause.join)) {
-      fromClause.join.forEach((j: any) => {
-        if (j.type === "table" && typeof j.name === "string") {
-          extractedTables.push(j.name.toLowerCase());
-        }
-        if (Array.isArray(j.join)) {
-          j.join.forEach((inner: any) => {
-            if (inner.type === "table" && typeof inner.name === "string") {
-              extractedTables.push(inner.name.toLowerCase());
-            }
-          });
-        }
-      });
-    }
-  }
-  
-  function walkStatement(node: any) {
-    if (!node) return;
-    
-    if (node.type === "select" && Array.isArray(node.from)) {
-      node.from.forEach(extractTablesFromFrom);
-    }
-    
-    // Recurse into subqueries anywhere in the statement
     for (const key of Object.keys(node)) {
-      if (Array.isArray(node[key])) {
-        node[key].forEach(walkStatement);
-      } else if (typeof node[key] === "object" && node[key] !== null) {
-        walkStatement(node[key]);
-      }
+      const child = node[key];
+      if (Array.isArray(child)) child.forEach(walk);
+      else if (child && typeof child === "object") walk(child);
     }
   }
-  
-  walkStatement(statement);
+  walk(statement);
 
   for (const table of extractedTables) {
     if (table.includes("pg_") || table.includes("information_schema")) {
