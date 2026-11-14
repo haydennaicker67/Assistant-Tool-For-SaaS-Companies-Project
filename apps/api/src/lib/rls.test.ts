@@ -28,12 +28,12 @@ const runTests = !!DB_URL;
   const tenantB = "22222222-2222-2222-2222-222222222222";
 
   beforeAll(async () => {
-    if (DB_URL === process.env.DATABASE_URL) {
+    if (DB_URL! === process.env.DATABASE_URL) {
       throw new Error("CRITICAL: TEST_DATABASE_URL is the same as DATABASE_URL. Refusing to run destructive tests against production.");
     }
 
-    sql = postgres(DB_URL, { max: 1, ssl: "require" });
-    
+    sql = postgres(DB_URL!, { max: 1, ssl: "require" });
+
     await sql`
       CREATE TABLE IF NOT EXISTS leak_test_orders (
         id uuid primary key default gen_random_uuid(),
