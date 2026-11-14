@@ -1,11 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { fetchApi } from '@/utils/api'
 
-export default function AuditLogPage() {
+function AuditLogContent() {
   const params = useParams()
   const projectId = params.id as string
   const [logs, setLogs] = useState<any[]>([])
@@ -99,5 +99,13 @@ export default function AuditLogPage() {
         </div>
       )}
     </div>
+  )
+}
+
+export default function AuditLogPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center">Loading audit log...</div>}>
+      <AuditLogContent />
+    </Suspense>
   )
 }
