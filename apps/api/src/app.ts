@@ -15,6 +15,7 @@ import { auditRoutes } from "./routes/audit";
 import { versionRoutes } from "./routes/versions";
 import { analyticsRoutes } from "./routes/analytics";
 import { requireUser } from "./middleware/require-user"; // NEW
+import { chartRoutes } from "./routes/charts";
 
 export function buildApp(env: Env) {
   const logger = createLogger(env);
@@ -60,6 +61,8 @@ export function buildApp(env: Env) {
   
   // Note: /v1/query is protected by authMiddleware (JWT), not requireUser
   app.route("/v1/query", queryRoutes);
+
+  app.route("/v1/charts", chartRoutes);
 
   return app;
 }

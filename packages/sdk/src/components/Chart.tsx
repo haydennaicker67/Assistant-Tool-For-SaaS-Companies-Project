@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import type { ChartSpec } from "@vizzly-sa/shared";
-import { useVizzlyConfig } from "../context"; // NEW IMPORT
+import { useVizzlyConfig } from "../context";
 
 // --- SUB-COMPONENT: TABLE ---
 function TableView({ data }: { data: ChartSpec }) {
@@ -155,9 +155,10 @@ function PieChartView({ data }: { data: ChartSpec }) {
 }
 
 // --- MAIN COMPONENT ---
-export function Chart({ data }: { data: ChartSpec }) {
-  const { role } = useVizzlyConfig(); // S12 FIX: Get the role
+export function Chart({ data, originalQuestion }: { data: ChartSpec, originalQuestion?: string }) {
+  const { role, embedToken, controlPlaneUrl, projectId } = useVizzlyConfig();
   const [activeChartType, setActiveChartType] = useState<"table" | "bar" | "line" | "pie">(data.chartType as any || "table");
+  const [saving, setSaving] = useState(false);
 
   const downloadCSV = () => {
     if (!data || data.rows.length === 0) return;
@@ -195,6 +196,30 @@ export function Chart({ data }: { data: ChartSpec }) {
     document.body.removeChild(link);
   };
 
+  // V1 FIX: Save chart to dashboard
+  const handleSave = async () => {
+    const title = prompt("Name this chart:", originalQuestion || "Saved Chart");
+    if (!title) return;
+    
+    setSaving(true);
+    try {
+      await fetch(`${controlPlaneUrl}/v1/charts/save`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${embedToken}`,
+          "x-project-id": projectId,
+        },
+        body: JSON.stringify({ title, question: originalQuestion || "", chartPayload: data }),
+      });
+      alert("Chart saved to dashboard!");
+    } catch (err) {
+      alert("Failed to save chart.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="vizzly-chart" style={{ marginTop: '1rem' }}>
       
@@ -219,6 +244,17 @@ export function Chart({ data }: { data: ChartSpec }) {
               <option value="line">Line Chart</option>
               <option value="pie">Pie Chart</option>
             </select>
+          )}
+
+          {/* V1: Save to Dashboard Button */}
+          {data.rows.length > 0 && (role === "editor" || role === "admin") && (
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              style={{ padding: '0.25rem 0.75rem', fontSize: '0.75rem', fontWeight: '500', color: '#fff', backgroundColor: '#10b981', border: 'none', borderRadius: '0.375rem', cursor: 'pointer', whiteSpace: 'nowrap', opacity: saving ? 0.5 : 1 }}
+            >
+              {saving ? "Saving..." : "Save to Dashboard"}
+            </button>
           )}
 
           {/* S12 FIX: Only show Export CSV if role is editor or admin */}

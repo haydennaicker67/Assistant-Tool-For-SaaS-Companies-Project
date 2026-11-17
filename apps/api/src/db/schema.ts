@@ -99,3 +99,16 @@ export const semanticLayerVersions = pgTable("semantic_layer_versions", {
   versionNumber: integer("version_number").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+// 9. Saved Charts (V1)
+export const savedCharts = pgTable("saved_charts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  projectId: uuid("project_id").references(() => projects.id, { onDelete: "cascade" }).notNull(),
+  tenantId: text("tenant_id").notNull(),
+  title: text("title").notNull(),
+  question: text("question").notNull(),
+  chartPayload: jsonb("chart_payload").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  tenantLookupIdx: index("saved_charts_tenant_idx").on(table.projectId, table.tenantId),
+}));
