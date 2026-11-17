@@ -24,3 +24,25 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+
+/* apps/web/src/app/globals.css */
+/* developer would need to alter these colours if they want it to match their brand */
+:root {
+  --vizzly-primary: #ff5722;
+  --vizzly-success: #4caf50;
+  --vizzly-surface: #ffffff;
+  --vizzly-surface-alt: #f5f5f5;
+  --vizzly-border: #e0e0e0;
+  --vizzly-text: #212121;
+  --vizzly-text-muted: #757575;
+  --vizzly-font-family: 'Inter', sans-serif;
+  --vizzly-font-size: 14px;
+  --vizzly-radius: 8px;
+  --vizzly-chart-1: #ff5722;
+  --vizzly-chart-2: #2196f3;
+  --vizzly-chart-3: #ffc107;
+  --vizzly-chart-4: #4caf50;
+  --vizzly-chart-5: #9c27b0;
+  --vizzly-chart-6: #e91e63;
+}

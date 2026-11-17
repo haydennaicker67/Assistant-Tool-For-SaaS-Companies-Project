@@ -2,45 +2,76 @@ import React, { useState } from "react";
 import type { ChartSpec } from "@vizzly-sa/shared";
 import { useVizzlyConfig } from "../context";
 
-// --- SUB-COMPONENT: TABLE ---
+// --- SUB-COMPONENT: PAGINATED TABLE ---
 function TableView({ data }: { data: ChartSpec }) {
+  const [page, setPage] = useState(0);
+  const pageSize = 25;
+  const totalPages = Math.ceil(data.rows.length / pageSize);
+  const visibleRows = data.rows.slice(page * pageSize, (page + 1) * pageSize);
+
   return (
-    <div style={{ overflowX: 'auto', border: '1px solid #e5e7eb', borderRadius: '0.5rem' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
-        <thead style={{ backgroundColor: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
-          <tr>
-            {data.columns.map((col) => (
-              <th key={col.name} style={{ padding: '0.75rem 1rem', textAlign: 'left', fontWeight: '600', color: '#374151' }}>
-                {col.label}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {data.rows.length === 0 ? (
-            <tr>
-              <td colSpan={data.columns.length} style={{ padding: '1rem', textAlign: 'center', color: '#6b7280' }}>No data found</td>
+    <div>
+      <div role="table" aria-label="Data table" style={{ overflowX: 'auto', border: '1px solid var(--vizzly-border, #e5e7eb)', borderRadius: 'var(--vizzly-radius, 0.5rem)' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 'var(--vizzly-font-size, 0.875rem)' }}>
+          <thead style={{ backgroundColor: 'var(--vizzly-surface-alt, #f9fafb)', borderBottom: '1px solid var(--vizzly-border, #e5e7eb)' }}>
+            <tr role="row">
+              {data.columns.map((col) => (
+                <th key={col.name} role="columnheader" style={{ padding: '0.75rem 1rem', textAlign: 'left', fontWeight: '600', color: 'var(--vizzly-text-muted, #374151)' }}>
+                  {col.label}
+                </th>
+              ))}
             </tr>
-          ) : (
-            data.rows.map((row, i) => (
-              <tr key={i} style={{ borderBottom: '1px solid #e5e7eb' }}>
-                {data.columns.map((col) => (
-                  <td key={col.name} style={{ padding: '0.75rem 1rem', color: '#111827' }}>
-                    {String(row[col.name] ?? "")}
-                  </td>
-                ))}
+          </thead>
+          <tbody>
+            {visibleRows.length === 0 ? (
+              <tr role="row">
+                <td colSpan={data.columns.length} role="cell" style={{ padding: '1rem', textAlign: 'center', color: 'var(--vizzly-text-muted, #6b7280)' }}>No data found</td>
               </tr>
-            ))
-          )}
-        </tbody>
-      </table>
+            ) : (
+              visibleRows.map((row, i) => (
+                <tr key={i} role="row" style={{ borderBottom: '1px solid var(--vizzly-border, #e5e7eb)' }}>
+                  {data.columns.map((col) => (
+                    <td key={col.name} role="cell" style={{ padding: '0.75rem 1rem', color: 'var(--vizzly-text, #111827)' }}>
+                      {String(row[col.name] ?? "")}
+                    </td>
+                  ))}
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {totalPages > 1 && (
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.75rem', fontSize: '0.75rem', color: 'var(--vizzly-text-muted, #6b7280)' }}>
+          <span>Page {page + 1} of {totalPages}</span>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <button
+              onClick={() => setPage(p => Math.max(0, p - 1))}
+              disabled={page === 0}
+              aria-label="Previous page"
+              style={{ padding: '0.25rem 0.5rem', border: '1px solid var(--vizzly-border, #d1d5db)', borderRadius: 'var(--vizzly-radius, 0.375rem)', cursor: page === 0 ? 'not-allowed' : 'pointer', opacity: page === 0 ? 0.5 : 1, backgroundColor: 'var(--vizzly-surface, #fff)', color: 'var(--vizzly-text, #374151)' }}
+            >
+              Prev
+            </button>
+            <button
+              onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
+              disabled={page >= totalPages - 1}
+              aria-label="Next page"
+              style={{ padding: '0.25rem 0.5rem', border: '1px solid var(--vizzly-border, #d1d5db)', borderRadius: 'var(--vizzly-radius, 0.375rem)', cursor: page >= totalPages - 1 ? 'not-allowed' : 'pointer', opacity: page >= totalPages - 1 ? 0.5 : 1, backgroundColor: 'var(--vizzly-surface, #fff)', color: 'var(--vizzly-text, #374151)' }}
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 // --- SUB-COMPONENT: BAR CHART ---
 function BarChartView({ data }: { data: ChartSpec }) {
-  if (data.rows.length === 0) return <div style={{ textAlign: 'center', color: '#6b7280' }}>No data found</div>;
+  if (data.rows.length === 0) return <div style={{ textAlign: 'center', color: 'var(--vizzly-text-muted, #6b7280)' }}>No data found</div>;
   const labelKey = data.columns[0]?.name;
   const valueKey = data.columns[1]?.name;
   if (!labelKey || !valueKey) return <TableView data={data} />;
@@ -48,15 +79,15 @@ function BarChartView({ data }: { data: ChartSpec }) {
   const maxValue = Math.max(...data.rows.map(r => Number(r[valueKey]) || 0), 1);
 
   return (
-    <div style={{ display: 'flex', alignItems: 'flex-end', gap: '1rem', height: '300px', padding: '1rem 0', borderLeft: '1px solid #e5e7eb', borderBottom: '1px solid #e5e7eb' }}>
+    <div role="img" aria-label={`Bar chart showing ${valueKey} by ${labelKey}`} style={{ display: 'flex', alignItems: 'flex-end', gap: '1rem', height: '300px', padding: '1rem 0', borderLeft: '1px solid var(--vizzly-border, #e5e7eb)', borderBottom: '1px solid var(--vizzly-border, #e5e7eb)' }}>
       {data.rows.map((row, i) => {
         const val = Number(row[valueKey]) || 0;
         const heightPct = (val / maxValue) * 100;
         return (
           <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-end', position: 'relative' }}>
-            <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.25rem' }}>{val}</div>
-            <div style={{ width: '100%', backgroundColor: '#3b82f6', height: `${heightPct}%`, borderRadius: '0.25rem 0.25rem 0 0', minHeight: '4px', transition: 'height 0.3s ease' }} />
-            <div style={{ fontSize: '0.75rem', color: '#374151', marginTop: '0.5rem', textAlign: 'center', wordBreak: 'break-all' }}>
+            <div style={{ fontSize: '0.75rem', color: 'var(--vizzly-text-muted, #6b7280)', marginBottom: '0.25rem' }}>{val}</div>
+            <div style={{ width: '100%', backgroundColor: 'var(--vizzly-primary, #3b82f6)', height: `${heightPct}%`, borderRadius: '0.25rem 0.25rem 0 0', minHeight: '4px', transition: 'height 0.3s ease' }} />
+            <div style={{ fontSize: '0.75rem', color: 'var(--vizzly-text, #374151)', marginTop: '0.5rem', textAlign: 'center', wordBreak: 'break-all' }}>
               {String(row[labelKey] ?? "")}
             </div>
           </div>
@@ -68,7 +99,7 @@ function BarChartView({ data }: { data: ChartSpec }) {
 
 // --- SUB-COMPONENT: LINE CHART ---
 function LineChartView({ data }: { data: ChartSpec }) {
-  if (data.rows.length === 0) return <div style={{ textAlign: 'center', color: '#6b7280' }}>No data found</div>;
+  if (data.rows.length === 0) return <div style={{ textAlign: 'center', color: 'var(--vizzly-text-muted, #6b7280)' }}>No data found</div>;
   const labelKey = data.columns[0]?.name;
   const valueKey = data.columns[1]?.name;
   if (!labelKey || !valueKey) return <TableView data={data} />;
@@ -86,16 +117,22 @@ function LineChartView({ data }: { data: ChartSpec }) {
 
   return (
     <div style={{ width: '100%', overflowX: 'auto' }}>
-      <svg viewBox={`0 0 ${width} ${height}`} style={{ width: '100%', height: '300px' }}>
-        <line x1={padding} y1={height - padding} x2={width - padding} y2={height - padding} stroke="#e5e7eb" strokeWidth="2" />
-        <polyline fill="none" stroke="#3b82f6" strokeWidth="3" points={points} strokeLinejoin="round" strokeLinecap="round" />
+      <svg
+        role="img"
+        aria-label={`Line chart showing ${valueKey} by ${labelKey}`}
+        viewBox={`0 0 ${width} ${height}`}
+        style={{ width: '100%', height: '300px' }}
+      >
+        <title>{`Line chart of ${valueKey} by ${labelKey}`}</title>
+        <line x1={padding} y1={height - padding} x2={width - padding} y2={height - padding} stroke="var(--vizzly-border, #e5e7eb)" strokeWidth="2" />
+        <polyline fill="none" stroke="var(--vizzly-primary, #3b82f6)" strokeWidth="3" points={points} strokeLinejoin="round" strokeLinecap="round" />
         {data.rows.map((row, i) => {
           const x = padding + (i * ((width - padding * 2) / Math.max(data.rows.length - 1, 1)));
           const y = height - padding - ((Number(row[valueKey]) || 0) / maxValue) * (height - padding * 2);
           return (
             <g key={i}>
-              <circle cx={x} cy={y} r="4" fill="#3b82f6" />
-              <text x={x} y={height - 10} textAnchor="middle" fontSize="10" fill="#6b7280">{String(row[labelKey] ?? "").slice(0, 10)}</text>
+              <circle cx={x} cy={y} r="4" fill="var(--vizzly-primary, #3b82f6)" />
+              <text x={x} y={height - 10} textAnchor="middle" fontSize="10" fill="var(--vizzly-text-muted, #6b7280)">{String(row[labelKey] ?? "").slice(0, 10)}</text>
             </g>
           );
         })}
@@ -106,20 +143,33 @@ function LineChartView({ data }: { data: ChartSpec }) {
 
 // --- SUB-COMPONENT: PIE CHART ---
 function PieChartView({ data }: { data: ChartSpec }) {
-  if (data.rows.length === 0) return <div style={{ textAlign: 'center', color: '#6b7280' }}>No data found</div>;
+  if (data.rows.length === 0) return <div style={{ textAlign: 'center', color: 'var(--vizzly-text-muted, #6b7280)' }}>No data found</div>;
   const labelKey = data.columns[0]?.name;
   const valueKey = data.columns[1]?.name;
   if (!labelKey || !valueKey) return <TableView data={data} />;
 
   const total = data.rows.reduce((sum, row) => sum + (Number(row[valueKey]) || 0), 0);
-  if (total === 0) return <div style={{ textAlign: 'center', color: '#6b7280' }}>Data values are 0</div>;
+  if (total === 0) return <div style={{ textAlign: 'center', color: 'var(--vizzly-text-muted, #6b7280)' }}>Data values are 0</div>;
 
   let currentAngle = 0;
-  const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
+  const colors = [
+    'var(--vizzly-chart-1, #3b82f6)',
+    'var(--vizzly-chart-2, #10b981)',
+    'var(--vizzly-chart-3, #f59e0b)',
+    'var(--vizzly-chart-4, #ef4444)',
+    'var(--vizzly-chart-5, #8b5cf6)',
+    'var(--vizzly-chart-6, #ec4899)'
+  ];
 
   return (
     <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '2rem', padding: '1rem' }}>
-      <svg viewBox="-1 -1 2 2" style={{ width: '200px', height: '200px', transform: 'rotate(-90deg)' }}>
+      <svg
+        role="img"
+        aria-label={`Pie chart showing ${valueKey} by ${labelKey}`}
+        viewBox="-1 -1 2 2"
+        style={{ width: '200px', height: '200px', transform: 'rotate(-90deg)' }}
+      >
+        <title>{`Pie chart of ${valueKey} by ${labelKey}`}</title>
         {data.rows.map((row, i) => {
           const val = Number(row[valueKey]) || 0;
           const angle = (val / total) * 360;
@@ -132,21 +182,16 @@ function PieChartView({ data }: { data: ChartSpec }) {
           const y2 = Math.sin((currentAngle * Math.PI) / 180);
           const largeArcFlag = angle > 180 ? 1 : 0;
 
-          const pathData = [
-            `M 0 0`,
-            `L ${x1} ${y1}`,
-            `A 1 1 0 ${largeArcFlag} 1 ${x2} ${y2}`,
-            `Z`
-          ].join(' ');
+          const pathData = [`M 0 0`, `L ${x1} ${y1}`, `A 1 1 0 ${largeArcFlag} 1 ${x2} ${y2}`, `Z`].join(' ');
 
-          return <path key={i} d={pathData} fill={colors[i % colors.length]} stroke="#fff" strokeWidth="0.05" />;
+          return <path key={i} d={pathData} fill={colors[i % colors.length]} stroke="var(--vizzly-surface, #fff)" strokeWidth="0.05" />;
         })}
       </svg>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
         {data.rows.map((row, i) => (
-          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem' }}>
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: 'var(--vizzly-font-size, 0.875rem)' }}>
             <div style={{ width: '12px', height: '12px', backgroundColor: colors[i % colors.length], borderRadius: '2px' }} />
-            <span style={{ color: '#374151' }}>{String(row[labelKey] ?? "")}: <strong>{String(row[valueKey] ?? "")}</strong></span>
+            <span style={{ color: 'var(--vizzly-text, #374151)' }}>{String(row[labelKey] ?? "")}: <strong>{String(row[valueKey] ?? "")}</strong></span>
           </div>
         ))}
       </div>
@@ -162,29 +207,20 @@ export function Chart({ data, originalQuestion }: { data: ChartSpec, originalQue
 
   const downloadCSV = () => {
     if (!data || data.rows.length === 0) return;
-
     const headers = data.columns.map(c => c.label).join(",");
-
     const csvRows = data.rows.map(row => {
       return data.columns.map(col => {
         const val = row[col.name];
-        
-        // S23 FIX: Neutralize CSV injection and handle quoting
         if (typeof val === "string") {
           let strVal = val;
-          if (/^[=+\-@]/.test(strVal)) {
-            strVal = `'${strVal}`;
-          }
+          if (/^[=+\-@]/.test(strVal)) strVal = `'${strVal}`;
           strVal = strVal.replace(/"/g, '""');
-          if (/[",\n]/.test(strVal)) {
-            return `"${strVal}"`;
-          }
+          if (/[",\n]/.test(strVal)) return `"${strVal}"`;
           return strVal;
         }
         return val ?? "";
       }).join(",");
     });
-
     const csvContent = [headers, ...csvRows].join("\n");
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
@@ -196,11 +232,9 @@ export function Chart({ data, originalQuestion }: { data: ChartSpec, originalQue
     document.body.removeChild(link);
   };
 
-  // V1 FIX: Save chart to dashboard
   const handleSave = async () => {
     const title = prompt("Name this chart:", originalQuestion || "Saved Chart");
     if (!title) return;
-    
     setSaving(true);
     try {
       await fetch(`${controlPlaneUrl}/v1/charts/save`, {
@@ -221,23 +255,22 @@ export function Chart({ data, originalQuestion }: { data: ChartSpec, originalQue
   };
 
   return (
-    <div className="vizzly-chart" style={{ marginTop: '1rem' }}>
-      
+    <div className="vizzly-chart" style={{ marginTop: '1rem', fontFamily: 'var(--vizzly-font-family, inherit)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem', gap: '1rem' }}>
         <div style={{ flex: 1 }}>
           {data.meta.explanation && (
-            <p style={{ color: '#555', fontSize: '0.875rem', margin: 0 }}>
+            <p style={{ color: 'var(--vizzly-text-muted, #555)', fontSize: 'var(--vizzly-font-size, 0.875rem)', margin: 0 }}>
               {data.meta.explanation}
             </p>
           )}
         </div>
-        
         <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
           {data.rows.length > 0 && (
-            <select 
-              value={activeChartType} 
+            <select
+              value={activeChartType}
               onChange={(e) => setActiveChartType(e.target.value as any)}
-              style={{ padding: '0.25rem', fontSize: '0.75rem', border: '1px solid #d1d5db', borderRadius: '0.375rem', color: '#374151' }}
+              aria-label="Select chart type"
+              style={{ padding: '0.25rem', fontSize: '0.75rem', border: '1px solid var(--vizzly-border, #d1d5db)', borderRadius: 'var(--vizzly-radius, 0.375rem)', color: 'var(--vizzly-text-muted, #374151)', backgroundColor: 'var(--vizzly-surface, #fff)' }}
             >
               <option value="table">Table</option>
               <option value="bar">Bar Chart</option>
@@ -246,22 +279,22 @@ export function Chart({ data, originalQuestion }: { data: ChartSpec, originalQue
             </select>
           )}
 
-          {/* V1: Save to Dashboard Button */}
           {data.rows.length > 0 && (role === "editor" || role === "admin") && (
             <button
               onClick={handleSave}
               disabled={saving}
-              style={{ padding: '0.25rem 0.75rem', fontSize: '0.75rem', fontWeight: '500', color: '#fff', backgroundColor: '#10b981', border: 'none', borderRadius: '0.375rem', cursor: 'pointer', whiteSpace: 'nowrap', opacity: saving ? 0.5 : 1 }}
+              aria-label="Save chart to dashboard"
+              style={{ padding: '0.25rem 0.75rem', fontSize: '0.75rem', fontWeight: '500', color: '#fff', backgroundColor: 'var(--vizzly-success, #10b981)', border: 'none', borderRadius: 'var(--vizzly-radius, 0.375rem)', cursor: 'pointer', whiteSpace: 'nowrap', opacity: saving ? 0.5 : 1 }}
             >
               {saving ? "Saving..." : "Save to Dashboard"}
             </button>
           )}
 
-          {/* S12 FIX: Only show Export CSV if role is editor or admin */}
           {data.rows.length > 0 && (role === "editor" || role === "admin") && (
             <button
               onClick={downloadCSV}
-              style={{ padding: '0.25rem 0.75rem', fontSize: '0.75rem', fontWeight: '500', color: '#374151', backgroundColor: '#f3f4f6', border: '1px solid #d1d5db', borderRadius: '0.375rem', cursor: 'pointer', whiteSpace: 'nowrap' }}
+              aria-label="Export data as CSV"
+              style={{ padding: '0.25rem 0.75rem', fontSize: '0.75rem', fontWeight: '500', color: 'var(--vizzly-text-muted, #374151)', backgroundColor: 'var(--vizzly-surface-alt, #f3f4f6)', border: '1px solid var(--vizzly-border, #d1d5db)', borderRadius: 'var(--vizzly-radius, 0.375rem)', cursor: 'pointer', whiteSpace: 'nowrap' }}
             >
               Export CSV
             </button>
@@ -274,10 +307,10 @@ export function Chart({ data, originalQuestion }: { data: ChartSpec, originalQue
       {activeChartType === "pie" && <PieChartView data={data} />}
       {activeChartType === "table" && <TableView data={data} />}
 
-      <div style={{ marginTop: '0.75rem', fontSize: '0.75rem', color: '#6b7280', display: 'flex', justifyContent: 'space-between' }}>
+      <div style={{ marginTop: '0.75rem', fontSize: '0.75rem', color: 'var(--vizzly-text-muted, #6b7280)', display: 'flex', justifyContent: 'space-between' }}>
         <span>
-          {data.meta.rowCount} rows · {data.meta.queryMs}ms 
-          {data.meta.cached && <span style={{ color: '#10b981', marginLeft: '0.5rem', fontWeight: 'bold' }}>(Cached)</span>}
+          {data.meta.rowCount} rows · {data.meta.queryMs}ms
+          {data.meta.cached && <span style={{ color: 'var(--vizzly-success, #10b981)', marginLeft: '0.5rem', fontWeight: 'bold' }}>(Cached)</span>}
         </span>
         <span>Type: {activeChartType}</span>
       </div>
